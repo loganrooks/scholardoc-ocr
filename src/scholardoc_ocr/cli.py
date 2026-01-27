@@ -11,17 +11,17 @@ from .pipeline import PipelineConfig, run_pipeline
 def main():
     """Main entry point."""
     parser = argparse.ArgumentParser(
-        description="High-performance OCR for philosophical texts (M4 optimized)",
+        description="High-performance OCR for academic texts (Apple Silicon optimized)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  levinas-ocr ~/Dropbox/scans        # Process all PDFs in a folder
-  levinas-ocr . -o ./output          # Current dir, custom output
-  levinas-ocr ~/Downloads            # Process ~/Downloads folder
-  levinas-ocr --quality 0.9          # Higher quality threshold (more Surya)
-  levinas-ocr --force                # Force Tesseract re-OCR on all files
-  levinas-ocr --debug                # Show sample problem OCR text
-  levinas-ocr -f file1.pdf file2.pdf # Process specific files only
+  ocr ~/Dropbox/scans        # Process all PDFs in a folder
+  ocr . -o ./output          # Current dir, custom output
+  ocr ~/Downloads            # Process ~/Downloads folder
+  ocr --quality 0.9          # Higher quality threshold (more Surya)
+  ocr --force                # Force Tesseract re-OCR on all files
+  ocr --debug                # Show sample problem OCR text
+  ocr -f file1.pdf file2.pdf # Process specific files only
         """,
     )
 
