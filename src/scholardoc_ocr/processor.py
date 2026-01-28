@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import logging
-import shutil
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable
 
 if TYPE_CHECKING:
     import fitz
@@ -54,13 +54,21 @@ class PDFProcessor:
             self._fitz = fitz
         return self._fitz
 
+    @contextmanager
+    def _open_pdf(self, pdf_path: Path | None = None):
+        """Context manager for PyMuPDF document. Pass None for empty doc."""
+        doc = self.fitz.open(pdf_path) if pdf_path else self.fitz.open()
+        try:
+            yield doc
+        finally:
+            doc.close()
+
     def extract_text(self, pdf_path: Path) -> str:
         """Extract all text from PDF using PyMuPDF (fast, no subprocess)."""
         try:
-            doc = self.fitz.open(pdf_path)
-            text_parts = [page.get_text() for page in doc]
-            doc.close()
-            return "\n".join(text_parts)
+            with self._open_pdf(pdf_path) as doc:
+                text_parts = [page.get_text() for page in doc]
+                return "\n".join(text_parts)
         except Exception as e:
             logger.warning(f"Text extraction failed for {pdf_path}: {e}")
             return ""
@@ -68,10 +76,8 @@ class PDFProcessor:
     def extract_text_by_page(self, pdf_path: Path) -> list[str]:
         """Extract text from each page separately. Returns list of page texts."""
         try:
-            doc = self.fitz.open(pdf_path)
-            texts = [page.get_text() for page in doc]
-            doc.close()
-            return texts
+            with self._open_pdf(pdf_path) as doc:
+                return [page.get_text() for page in doc]
         except Exception as e:
             logger.warning(f"Page extraction failed for {pdf_path}: {e}")
             return []
@@ -79,16 +85,12 @@ class PDFProcessor:
     def extract_pages(self, pdf_path: Path, page_numbers: list[int], output_path: Path) -> bool:
         """Extract specific pages (0-indexed) to a new PDF."""
         try:
-            doc = self.fitz.open(pdf_path)
-            new_doc = self.fitz.open()  # Create empty PDF
-
-            for page_num in page_numbers:
-                if 0 <= page_num < len(doc):
-                    new_doc.insert_pdf(doc, from_page=page_num, to_page=page_num)
-
-            new_doc.save(output_path)
-            new_doc.close()
-            doc.close()
+            with self._open_pdf(pdf_path) as doc:
+                with self._open_pdf() as new_doc:
+                    for page_num in page_numbers:
+                        if 0 <= page_num < len(doc):
+                            new_doc.insert_pdf(doc, from_page=page_num, to_page=page_num)
+                    new_doc.save(output_path)
             return True
         except Exception as e:
             logger.error(f"Failed to extract pages {page_numbers}: {e}")
@@ -105,24 +107,23 @@ class PDFProcessor:
             output_path: Where to save the merged result
         """
         try:
-            original = self.fitz.open(original_path)
-            replacement = self.fitz.open(replacement_path)
-            result = self.fitz.open()  # New document
-
-            replacement_idx = 0
-            for page_num in range(len(original)):
-                if page_num in page_numbers and replacement_idx < len(replacement):
-                    # Use replacement page
-                    result.insert_pdf(replacement, from_page=replacement_idx, to_page=replacement_idx)
-                    replacement_idx += 1
-                else:
-                    # Use original page
-                    result.insert_pdf(original, from_page=page_num, to_page=page_num)
-
-            result.save(output_path)
-            result.close()
-            replacement.close()
-            original.close()
+            with self._open_pdf(original_path) as original:
+                with self._open_pdf(replacement_path) as replacement:
+                    with self._open_pdf() as result:
+                        replacement_idx = 0
+                        for page_num in range(len(original)):
+                            if page_num in page_numbers and replacement_idx < len(replacement):
+                                result.insert_pdf(
+                                    replacement,
+                                    from_page=replacement_idx,
+                                    to_page=replacement_idx,
+                                )
+                                replacement_idx += 1
+                            else:
+                                result.insert_pdf(
+                                    original, from_page=page_num, to_page=page_num
+                                )
+                        result.save(output_path)
             return True
         except Exception as e:
             logger.error(f"Failed to replace pages: {e}")
@@ -131,17 +132,14 @@ class PDFProcessor:
     def get_page_count(self, pdf_path: Path) -> int:
         """Get page count using PyMuPDF."""
         try:
-            doc = self.fitz.open(pdf_path)
-            count = len(doc)
-            doc.close()
-            return count
+            with self._open_pdf(pdf_path) as doc:
+                return len(doc)
         except Exception:
             return 0
 
     def run_tesseract(self, input_path: Path, output_path: Path) -> bool:
         """Run ocrmypdf with Tesseract. Returns True on success."""
         import logging as _logging
-        import os
         import subprocess
         import sys
 
@@ -227,16 +225,12 @@ class PDFProcessor:
             True on success
         """
         try:
-            combined = self.fitz.open()
-
-            for pdf_path, page_num in page_specs:
-                doc = self.fitz.open(pdf_path)
-                if 0 <= page_num < len(doc):
-                    combined.insert_pdf(doc, from_page=page_num, to_page=page_num)
-                doc.close()
-
-            combined.save(output_path)
-            combined.close()
+            with self._open_pdf() as combined:
+                for pdf_path, page_num in page_specs:
+                    with self._open_pdf(pdf_path) as doc:
+                        if 0 <= page_num < len(doc):
+                            combined.insert_pdf(doc, from_page=page_num, to_page=page_num)
+                combined.save(output_path)
             return True
         except Exception as e:
             logger.error(f"Failed to combine pages: {e}")
@@ -247,7 +241,7 @@ class PDFProcessor:
         combined_pdf: Path,
         work_dir: Path,
         batch_size: int = 50,
-        progress_callback: callable = None
+        progress_callback: Callable[[str, int, int], None] | None = None
     ) -> list[str] | None:
         """Run Surya on a combined PDF, processing in batches.
 
@@ -295,7 +289,11 @@ class PDFProcessor:
                 batch_pages = list(range(batch_start, batch_end))
                 batch_num = batch_idx + 1
 
-                report(f"Batch {batch_num}/{num_batches}: pages {batch_start+1}-{batch_end}", pages_done, total_pages)
+                report(
+                    f"Batch {batch_num}/{num_batches}: pages {batch_start+1}-{batch_end}",
+                    pages_done,
+                    total_pages,
+                )
 
                 # Extract batch to temp file
                 batch_pdf = work_dir / f"surya_batch_{batch_start}.pdf"
@@ -330,54 +328,4 @@ class PDFProcessor:
             return None
         except Exception as e:
             logger.error(f"Surya batch OCR failed: {e}")
-            return None
-
-    def run_surya_on_pages(self, input_path: Path, page_numbers: list[int],
-                           work_dir: Path) -> Path | None:
-        """Run Surya only on specific pages from a single file.
-
-        Args:
-            input_path: Source PDF
-            page_numbers: 0-indexed page numbers to process
-            work_dir: Directory for intermediate files
-
-        Returns:
-            Path to markdown output with extracted text
-        """
-        if not page_numbers:
-            return None
-
-        # Extract bad pages to temp PDF
-        temp_pdf = work_dir / f"{input_path.stem}_pages_for_surya.pdf"
-        if not self.extract_pages(input_path, page_numbers, temp_pdf):
-            return None
-
-        # Run Surya on the extracted pages
-        try:
-            from marker.converters.pdf import PdfConverter
-            from marker.models import create_model_dict
-
-            model_dict = create_model_dict()
-            converter = PdfConverter(
-                artifact_dict=model_dict,
-                config={
-                    "langs": self.config.langs_surya,
-                    "force_ocr": True,
-                },
-            )
-
-            rendered = converter(str(temp_pdf))
-
-            # Save markdown
-            md_path = work_dir / f"{input_path.stem}_surya_pages.md"
-            md_path.write_text(rendered.markdown, encoding="utf-8")
-
-            logger.info(f"Surya processed {len(page_numbers)} pages from {input_path.name}")
-            return md_path
-
-        except ImportError:
-            logger.error("Marker not installed. Run: pip install marker-pdf")
-            return None
-        except Exception as e:
-            logger.error(f"Surya page OCR failed: {e}")
             return None
