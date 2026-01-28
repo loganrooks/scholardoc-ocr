@@ -1,0 +1,123 @@
+# Requirements: scholardoc-ocr
+
+**Defined:** 2026-01-28
+**Core Value:** Produce accurate OCR text from scanned academic PDFs with minimal manual intervention, using quality-gated fallback to avoid expensive neural OCR unless needed.
+
+## v1 Requirements
+
+Requirements for initial release. Each maps to roadmap phases.
+
+### Critical Bug Fixes
+
+- [ ] **BUG-01**: Surya OCR results written back to output files (currently discarded at pipeline.py:564-567)
+- [ ] **BUG-02**: Surya batch output correctly extracted from rendered markdown (currently re-reads original bad text at processor.py:309-312)
+
+### Library API
+
+- [ ] **API-01**: Clean Python library API that can be called without CLI
+- [ ] **API-02**: Pipeline returns structured results (per-file, per-page quality scores and status)
+- [ ] **API-03**: Progress reporting via callback protocol (not coupled to Rich)
+- [ ] **API-04**: No sys.exit() in library code; proper exception hierarchy
+
+### Architecture
+
+- [ ] **ARCH-01**: Pipeline orchestration separated from UI presentation
+- [ ] **ARCH-02**: Per-file Surya batching with shared model (replace cross-file combined PDF approach)
+- [ ] **ARCH-03**: Resource-safe PDF handling (context managers for all fitz operations)
+- [ ] **ARCH-04**: Coordinate CPU usage (pool workers × jobs_per_file ≤ total cores)
+- [ ] **ARCH-05**: Surya models loaded once per pipeline run, shared across files in main process
+
+### Quality Analysis
+
+- [ ] **QUAL-01**: Tesseract confidence scores integrated into quality scoring (hOCR word-level confidence)
+- [ ] **QUAL-02**: Composite quality score (confidence + garbled regex + dictionary hits)
+- [ ] **QUAL-03**: Per-page quality breakdown available in results
+
+### Language Support
+
+- [ ] **LANG-01**: German language support added (Tesseract: deu, Surya: de) — required for Continental philosophy
+- [ ] **LANG-02**: Academic term whitelists updated for German philosophical vocabulary
+
+### CLI
+
+- [ ] **CLI-01**: CLI wraps library API (thin presentation layer)
+- [ ] **CLI-02**: Existing CLI interface (`ocr` command, current flags) preserved
+- [ ] **CLI-03**: Recursive mode file path handling fixed
+
+### Code Cleanup
+
+- [ ] **CLEAN-01**: Dead code removed (run_surya_on_pages, stale LEVINAS references)
+- [ ] **CLEAN-02**: Invalid type annotations fixed (lowercase `callable`)
+
+### Testing
+
+- [ ] **TEST-01**: Unit tests for quality analysis (scoring, whitelists, edge cases)
+- [ ] **TEST-02**: Unit tests for PDF processor operations (extract, combine, text extraction)
+- [ ] **TEST-03**: Integration tests for pipeline orchestration (Phase 1 → Phase 2 flow)
+- [ ] **TEST-04**: Test verifying Surya output actually appears in final output file
+
+## v2 Requirements
+
+Deferred to future release. Tracked but not in current roadmap.
+
+### Quality Analysis v2
+
+- **QUAL2-01**: Dictionary-based validation via hunspell/enchant for real-word substitution detection
+- **QUAL2-02**: N-gram perplexity scoring for language model-based quality assessment
+- **QUAL2-03**: Layout consistency checks (line spacing, column detection anomalies)
+
+### Features v2
+
+- **FEAT2-01**: Configurable domain dictionaries (user-supplied term whitelists)
+- **FEAT2-02**: JSON/structured output format option
+- **FEAT2-03**: Dry-run mode showing which pages would trigger Surya without running it
+
+## Out of Scope
+
+| Feature | Reason |
+|---------|--------|
+| Surya-only mode | Tesseract-first is core value; two-phase approach is the differentiator |
+| GUI or web interface | CLI + library API sufficient for target users (individual scholars) |
+| Non-PDF input formats | PDFs are the standard for scanned academic texts |
+| Cloud deployment / API server | Local tool for individual scholars |
+| OCR training / model fine-tuning | Use Tesseract and Surya as-is |
+| Click migration for CLI | argparse works; migration adds risk for marginal benefit in v1 |
+
+## Traceability
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| BUG-01 | Phase 4 | Pending |
+| BUG-02 | Phase 4 | Pending |
+| API-01 | Phase 1 | Pending |
+| API-02 | Phase 1 | Pending |
+| API-03 | Phase 1 | Pending |
+| API-04 | Phase 1 | Pending |
+| ARCH-01 | Phase 4 | Pending |
+| ARCH-02 | Phase 4 | Pending |
+| ARCH-03 | Phase 1 | Pending |
+| ARCH-04 | Phase 4 | Pending |
+| ARCH-05 | Phase 3 | Pending |
+| QUAL-01 | Phase 2 | Pending |
+| QUAL-02 | Phase 2 | Pending |
+| QUAL-03 | Phase 2 | Pending |
+| LANG-01 | Phase 2 | Pending |
+| LANG-02 | Phase 2 | Pending |
+| CLI-01 | Phase 5 | Pending |
+| CLI-02 | Phase 5 | Pending |
+| CLI-03 | Phase 5 | Pending |
+| CLEAN-01 | Phase 1 | Pending |
+| CLEAN-02 | Phase 1 | Pending |
+| TEST-01 | Phase 2 | Pending |
+| TEST-02 | Phase 1 | Pending |
+| TEST-03 | Phase 4 | Pending |
+| TEST-04 | Phase 4 | Pending |
+
+**Coverage:**
+- v1 requirements: 25 total
+- Mapped to phases: 25
+- Unmapped: 0
+
+---
+*Requirements defined: 2026-01-28*
+*Last updated: 2026-01-28 after research synthesis*
