@@ -34,10 +34,12 @@ Decimal phases appear between their surrounding integers in numeric order.
   4. Progress reporting works via callback protocol (decoupled from Rich)
   5. Dead code removed and invalid type annotations fixed
 
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 01-01: [To be determined during planning]
+- [ ] 01-01-PLAN.md — Create leaf modules: types.py, callbacks.py, exceptions.py
+- [ ] 01-02-PLAN.md — Clean up existing code: context managers, Rich removal, dead code
+- [ ] 01-03-PLAN.md — Wire public API and create unit tests
 
 ### Phase 2: Quality Analysis Enhancement
 **Goal**: Replace regex-only quality detection with multi-signal composite scoring using OCR confidence, dictionary validation, and extended language support.
@@ -124,7 +126,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation and Data Structures | 0/? | Not started | - |
+| 1. Foundation and Data Structures | 0/3 | Planning complete | - |
 | 2. Quality Analysis Enhancement | 0/? | Not started | - |
 | 3. OCR Backend Modules | 0/? | Not started | - |
 | 4. Engine Orchestration | 0/? | Not started | - |
