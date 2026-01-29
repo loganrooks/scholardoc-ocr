@@ -99,6 +99,17 @@ class FileResult:
 
 
 @dataclass
+@dataclass
+class SignalResult:
+    """Result from a quality signal scorer."""
+
+    name: str
+    score: float
+    passed: bool
+    details: dict = field(default_factory=dict)
+
+
+@dataclass
 class BatchResult:
     """Result for an entire batch of files."""
 
