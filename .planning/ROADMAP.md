@@ -78,10 +78,12 @@ Plans:
   4. Backend modules can be tested independently without running full pipeline
   5. ML model imports lazy-load (torch/marker not imported at module level)
 
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 03-01: [To be determined during planning]
+- [ ] 03-01-PLAN.md — Tesseract backend module with ocrmypdf Python API and unit tests
+- [ ] 03-02-PLAN.md — Surya backend module with model lifecycle and unit tests
+- [ ] 03-03-PLAN.md — Processor cleanup and package export wiring
 
 ### Phase 4: Engine Orchestration
 **Goal**: Fix pipeline orchestration to use per-file Surya batching with shared models, eliminate cross-file index mapping, and write Surya results back to output files.
