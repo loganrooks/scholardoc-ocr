@@ -10,6 +10,12 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from .callbacks import (
+    LoggingCallback,
+    PhaseEvent,
+    PipelineCallback,
+    ProgressEvent,
+)
 from .processor import PDFProcessor, ProcessingResult, ProcessorConfig
 from .quality import QualityAnalyzer, QualityResult
 
@@ -256,8 +262,12 @@ def _process_single(args: tuple) -> ExtendedResult:
         )
 
 
-def run_pipeline(config: PipelineConfig) -> list[ExtendedResult]:
+def run_pipeline(
+    config: PipelineConfig,
+    callback: PipelineCallback | None = None,
+) -> list[ExtendedResult]:
     """Run the OCR pipeline."""
+    cb: PipelineCallback = callback or LoggingCallback()
     config.output_dir.mkdir(parents=True, exist_ok=True)
     (config.output_dir / "work").mkdir(exist_ok=True)
     (config.output_dir / "final").mkdir(exist_ok=True)
@@ -314,7 +324,12 @@ def run_pipeline(config: PipelineConfig) -> list[ExtendedResult]:
     )
 
     phase1_start = time.time()
+    cb.on_phase(PhaseEvent(
+        phase="tesseract", status="started",
+        files_count=len(input_files), pages_count=total_pages,
+    ))
 
+    completed = 0
     with ProcessPoolExecutor(max_workers=config.max_workers) as executor:
         future_to_path = {}
         for args in args_list:
@@ -326,6 +341,11 @@ def run_pipeline(config: PipelineConfig) -> list[ExtendedResult]:
             try:
                 result = future.result()
                 results.append(result)
+                completed += 1
+                cb.on_progress(ProgressEvent(
+                    phase="tesseract", current=completed,
+                    total=len(input_files), filename=result.filename,
+                ))
                 logger.info(
                     "%s: %s (%.1f%% quality, %.1fs)",
                     result.filename,
@@ -340,6 +360,10 @@ def run_pipeline(config: PipelineConfig) -> list[ExtendedResult]:
 
     phase1_elapsed = time.time() - phase1_start
     logger.info("Phase 1 completed in %.1fs", phase1_elapsed)
+    cb.on_phase(PhaseEvent(
+        phase="tesseract", status="completed",
+        files_count=len(input_files), pages_count=total_pages,
+    ))
 
     # Phase 2: Surya for flagged pages (BATCHED - load models ONCE for all pages)
     if needs_surya:
@@ -362,6 +386,11 @@ def run_pipeline(config: PipelineConfig) -> list[ExtendedResult]:
             total_bad_pages,
             total_pages_in_flagged,
         )
+
+        cb.on_phase(PhaseEvent(
+            phase="surya", status="started",
+            files_count=len(needs_surya), pages_count=total_bad_pages,
+        ))
 
         if total_bad_pages > 0:
             surya_start = time.time()
@@ -386,7 +415,7 @@ def run_pipeline(config: PipelineConfig) -> list[ExtendedResult]:
 
                 # Step 2: Run Surya
                 surya_texts = surya_processor.run_surya_batch(
-                    combined_pdf, work_dir, batch_size=50
+                    combined_pdf, work_dir, batch_size=50, callback=cb
                 )
 
                 if surya_texts:
@@ -427,6 +456,11 @@ def run_pipeline(config: PipelineConfig) -> list[ExtendedResult]:
 
             surya_elapsed = time.time() - surya_start
             logger.info("Surya phase: %.1fs total", surya_elapsed)
+
+        cb.on_phase(PhaseEvent(
+            phase="surya", status="completed",
+            files_count=len(needs_surya), pages_count=total_bad_pages,
+        ))
 
     # Summary
     success_count = sum(1 for r in results if r.success)

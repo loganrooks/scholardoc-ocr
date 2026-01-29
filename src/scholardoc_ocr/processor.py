@@ -6,7 +6,9 @@ import logging
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING
+
+from .callbacks import ModelEvent, PipelineCallback, ProgressEvent
 
 if TYPE_CHECKING:
     import fitz
@@ -241,7 +243,7 @@ class PDFProcessor:
         combined_pdf: Path,
         work_dir: Path,
         batch_size: int = 50,
-        progress_callback: Callable[[str, int, int], None] | None = None
+        callback: PipelineCallback | None = None,
     ) -> list[str] | None:
         """Run Surya on a combined PDF, processing in batches.
 
@@ -249,7 +251,7 @@ class PDFProcessor:
             combined_pdf: PDF containing all pages to OCR
             work_dir: Directory for intermediate files
             batch_size: Pages per batch (to manage memory)
-            progress_callback: Optional callback(stage: str, current: int, total: int)
+            callback: Optional PipelineCallback for progress reporting
 
         Returns:
             List of extracted text, one per page in order
@@ -259,14 +261,20 @@ class PDFProcessor:
             from marker.models import create_model_dict
 
             def report(stage: str, current: int = 0, total: int = 0):
-                if progress_callback:
-                    progress_callback(stage, current, total)
+                if callback:
+                    callback.on_progress(ProgressEvent(
+                        phase="surya", current=current, total=total, filename=stage,
+                    ))
                 else:
                     logger.info(f"{stage}: {current}/{total}" if total else stage)
 
             # Load models ONCE
+            if callback:
+                callback.on_model(ModelEvent(model_name="surya", status="loading"))
             report("Loading Surya models...")
             model_dict = create_model_dict()
+            if callback:
+                callback.on_model(ModelEvent(model_name="surya", status="ready"))
             report("Models loaded")
 
             converter = PdfConverter(
