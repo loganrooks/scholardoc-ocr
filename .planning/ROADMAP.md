@@ -13,7 +13,7 @@ This roadmap rebuilds the scholardoc-ocr hybrid OCR pipeline from the ground up 
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Foundation and Data Structures** - Clean API contracts, context managers, exception hierarchy
-- [ ] **Phase 2: Quality Analysis Enhancement** - Multi-signal scoring with confidence, dictionary, German support
+- [x] **Phase 2: Quality Analysis Enhancement** - Multi-signal scoring with confidence, dictionary, German support
 - [ ] **Phase 3: OCR Backend Modules** - Extract Tesseract/Surya wrappers, fix model lifecycle
 - [ ] **Phase 4: Engine Orchestration** - Per-file batching, fix Surya writeback, resource-aware parallelism
 - [ ] **Phase 5: CLI Presentation Layer** - Thin CLI wrapper around library API, preserve interface
@@ -60,9 +60,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 02-01-PLAN.md — Dictionary signal module, bundled word list, German vocabulary
-- [ ] 02-02-PLAN.md — Tesseract confidence extraction module (pytesseract)
-- [ ] 02-03-PLAN.md — Composite quality analyzer refactor and unit tests
+- [x] 02-01-PLAN.md — Dictionary signal module, bundled word list, German vocabulary
+- [x] 02-02-PLAN.md — Tesseract confidence extraction module (pytesseract)
+- [x] 02-03-PLAN.md — Composite quality analyzer refactor and unit tests
 
 ### Phase 3: OCR Backend Modules
 **Goal**: Extract Tesseract and Surya OCR operations from monolithic processor into focused, testable backend modules with proper model lifecycle management.
@@ -130,7 +130,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation and Data Structures | 4/4 | Complete ✓ | 2026-01-29 |
-| 2. Quality Analysis Enhancement | 0/? | Not started | - |
+| 2. Quality Analysis Enhancement | 3/3 | Complete ✓ | 2026-01-29 |
 | 3. OCR Backend Modules | 0/? | Not started | - |
 | 4. Engine Orchestration | 0/? | Not started | - |
 | 5. CLI Presentation Layer | 0/? | Not started | - |

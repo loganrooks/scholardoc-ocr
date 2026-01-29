@@ -29,14 +29,14 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Quality Analysis
 
-- [ ] **QUAL-01**: Tesseract confidence scores integrated into quality scoring (hOCR word-level confidence)
-- [ ] **QUAL-02**: Composite quality score (confidence + garbled regex + dictionary hits)
-- [ ] **QUAL-03**: Per-page quality breakdown available in results
+- [x] **QUAL-01**: Tesseract confidence scores integrated into quality scoring (hOCR word-level confidence)
+- [x] **QUAL-02**: Composite quality score (confidence + garbled regex + dictionary hits)
+- [x] **QUAL-03**: Per-page quality breakdown available in results
 
 ### Language Support
 
-- [ ] **LANG-01**: German language support added (Tesseract: deu, Surya: de) — required for Continental philosophy
-- [ ] **LANG-02**: Academic term whitelists updated for German philosophical vocabulary
+- [x] **LANG-01**: German language support added (Tesseract: deu, Surya: de) — required for Continental philosophy
+- [x] **LANG-02**: Academic term whitelists updated for German philosophical vocabulary
 
 ### CLI
 
@@ -51,7 +51,7 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Testing
 
-- [ ] **TEST-01**: Unit tests for quality analysis (scoring, whitelists, edge cases)
+- [x] **TEST-01**: Unit tests for quality analysis (scoring, whitelists, edge cases)
 - [x] **TEST-02**: Unit tests for PDF processor operations (extract, combine, text extraction)
 - [ ] **TEST-03**: Integration tests for pipeline orchestration (Phase 1 → Phase 2 flow)
 - [ ] **TEST-04**: Test verifying Surya output actually appears in final output file
