@@ -25,7 +25,7 @@ Requirements for initial release. Each maps to roadmap phases.
 - [ ] **ARCH-02**: Per-file Surya batching with shared model (replace cross-file combined PDF approach)
 - [x] **ARCH-03**: Resource-safe PDF handling (context managers for all fitz operations)
 - [ ] **ARCH-04**: Coordinate CPU usage (pool workers × jobs_per_file ≤ total cores)
-- [ ] **ARCH-05**: Surya models loaded once per pipeline run, shared across files in main process
+- [x] **ARCH-05**: Surya models loaded once per pipeline run, shared across files in main process
 
 ### Quality Analysis
 
@@ -97,18 +97,18 @@ Deferred to future release. Tracked but not in current roadmap.
 | ARCH-02 | Phase 4 | Pending |
 | ARCH-03 | Phase 1 | Complete |
 | ARCH-04 | Phase 4 | Pending |
-| ARCH-05 | Phase 3 | Pending |
-| QUAL-01 | Phase 2 | Pending |
-| QUAL-02 | Phase 2 | Pending |
-| QUAL-03 | Phase 2 | Pending |
-| LANG-01 | Phase 2 | Pending |
-| LANG-02 | Phase 2 | Pending |
+| ARCH-05 | Phase 3 | Complete |
+| QUAL-01 | Phase 2 | Complete |
+| QUAL-02 | Phase 2 | Complete |
+| QUAL-03 | Phase 2 | Complete |
+| LANG-01 | Phase 2 | Complete |
+| LANG-02 | Phase 2 | Complete |
 | CLI-01 | Phase 5 | Pending |
 | CLI-02 | Phase 5 | Pending |
 | CLI-03 | Phase 5 | Pending |
 | CLEAN-01 | Phase 1 | Complete |
 | CLEAN-02 | Phase 1 | Complete |
-| TEST-01 | Phase 2 | Pending |
+| TEST-01 | Phase 2 | Complete |
 | TEST-02 | Phase 1 | Complete |
 | TEST-03 | Phase 4 | Pending |
 | TEST-04 | Phase 4 | Pending |

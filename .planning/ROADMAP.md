@@ -14,7 +14,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Foundation and Data Structures** - Clean API contracts, context managers, exception hierarchy
 - [x] **Phase 2: Quality Analysis Enhancement** - Multi-signal scoring with confidence, dictionary, German support
-- [ ] **Phase 3: OCR Backend Modules** - Extract Tesseract/Surya wrappers, fix model lifecycle
+- [x] **Phase 3: OCR Backend Modules** - Extract Tesseract/Surya wrappers, fix model lifecycle
 - [ ] **Phase 4: Engine Orchestration** - Per-file batching, fix Surya writeback, resource-aware parallelism
 - [ ] **Phase 5: CLI Presentation Layer** - Thin CLI wrapper around library API, preserve interface
 
@@ -81,9 +81,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 03-01-PLAN.md — Tesseract backend module with ocrmypdf Python API and unit tests
-- [ ] 03-02-PLAN.md — Surya backend module with model lifecycle and unit tests
-- [ ] 03-03-PLAN.md — Processor cleanup and package export wiring
+- [x] 03-01-PLAN.md — Tesseract backend module with ocrmypdf Python API and unit tests
+- [x] 03-02-PLAN.md — Surya backend module with model lifecycle and unit tests
+- [x] 03-03-PLAN.md — Processor cleanup and package export wiring
 
 ### Phase 4: Engine Orchestration
 **Goal**: Fix pipeline orchestration to use per-file Surya batching with shared models, eliminate cross-file index mapping, and write Surya results back to output files.
@@ -133,6 +133,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 |-------|----------------|--------|-----------|
 | 1. Foundation and Data Structures | 4/4 | Complete ✓ | 2026-01-29 |
 | 2. Quality Analysis Enhancement | 3/3 | Complete ✓ | 2026-01-29 |
-| 3. OCR Backend Modules | 0/? | Not started | - |
+| 3. OCR Backend Modules | 3/3 | Complete ✓ | 2026-01-29 |
 | 4. Engine Orchestration | 0/? | Not started | - |
 | 5. CLI Presentation Layer | 0/? | Not started | - |
