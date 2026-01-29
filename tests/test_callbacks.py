@@ -75,10 +75,12 @@ class TestCallbackWiring:
             run_pipeline(config)
             mock_cls.assert_called_once()
 
-    def test_processor_callback_signature(self):
-        sig = inspect.signature(PDFProcessor.run_surya_batch)
-        assert "callback" in sig.parameters
-        assert "progress_callback" not in sig.parameters
+    def test_surya_convert_pdf_signature(self):
+        from scholardoc_ocr.surya import convert_pdf
+
+        sig = inspect.signature(convert_pdf)
+        assert "model_dict" in sig.parameters
+        assert "config" in sig.parameters
 
 
 class TestCallbackEventsFire:

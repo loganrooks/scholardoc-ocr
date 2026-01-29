@@ -23,15 +23,18 @@ from .types import (
 
 __all__ = [
     "__version__",
+    # Types
     "BatchResult",
     "FileResult",
     "PageResult",
     "OCREngine",
     "ProcessingPhase",
     "PageStatus",
+    # Callbacks
     "PipelineCallback",
     "LoggingCallback",
     "NullCallback",
+    # Exceptions
     "ScholarDocError",
     "OCRError",
     "TesseractError",
@@ -39,4 +42,7 @@ __all__ = [
     "PDFError",
     "ConfigError",
     "DependencyError",
+    # OCR backend submodules (access via scholardoc_ocr.tesseract / scholardoc_ocr.surya)
+    "tesseract",
+    "surya",
 ]
