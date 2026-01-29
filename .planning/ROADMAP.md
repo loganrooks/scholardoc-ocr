@@ -12,7 +12,7 @@ This roadmap rebuilds the scholardoc-ocr hybrid OCR pipeline from the ground up 
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Foundation and Data Structures** - Clean API contracts, context managers, exception hierarchy
+- [x] **Phase 1: Foundation and Data Structures** - Clean API contracts, context managers, exception hierarchy
 - [ ] **Phase 2: Quality Analysis Enhancement** - Multi-signal scoring with confidence, dictionary, German support
 - [ ] **Phase 3: OCR Backend Modules** - Extract Tesseract/Surya wrappers, fix model lifecycle
 - [ ] **Phase 4: Engine Orchestration** - Per-file batching, fix Surya writeback, resource-aware parallelism
@@ -37,9 +37,10 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans**: 3 plans
 
 Plans:
-- [ ] 01-01-PLAN.md — Create leaf modules: types.py, callbacks.py, exceptions.py
-- [ ] 01-02-PLAN.md — Clean up existing code: context managers, Rich removal, dead code
-- [ ] 01-03-PLAN.md — Wire public API and create unit tests
+- [x] 01-01-PLAN.md — Create leaf modules: types.py, callbacks.py, exceptions.py
+- [x] 01-02-PLAN.md — Clean up existing code: context managers, Rich removal, dead code
+- [x] 01-03-PLAN.md — Wire public API and create unit tests
+- [x] 01-04-PLAN.md — Wire callbacks into pipeline and processor (gap closure)
 
 ### Phase 2: Quality Analysis Enhancement
 **Goal**: Replace regex-only quality detection with multi-signal composite scoring using OCR confidence, dictionary validation, and extended language support.
@@ -126,7 +127,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation and Data Structures | 0/3 | Planning complete | - |
+| 1. Foundation and Data Structures | 4/4 | Complete ✓ | 2026-01-29 |
 | 2. Quality Analysis Enhancement | 0/? | Not started | - |
 | 3. OCR Backend Modules | 0/? | Not started | - |
 | 4. Engine Orchestration | 0/? | Not started | - |

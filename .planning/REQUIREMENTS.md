@@ -14,16 +14,16 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Library API
 
-- [ ] **API-01**: Clean Python library API that can be called without CLI
-- [ ] **API-02**: Pipeline returns structured results (per-file, per-page quality scores and status)
-- [ ] **API-03**: Progress reporting via callback protocol (not coupled to Rich)
-- [ ] **API-04**: No sys.exit() in library code; proper exception hierarchy
+- [x] **API-01**: Clean Python library API that can be called without CLI
+- [x] **API-02**: Pipeline returns structured results (per-file, per-page quality scores and status)
+- [x] **API-03**: Progress reporting via callback protocol (not coupled to Rich)
+- [x] **API-04**: No sys.exit() in library code; proper exception hierarchy
 
 ### Architecture
 
 - [ ] **ARCH-01**: Pipeline orchestration separated from UI presentation
 - [ ] **ARCH-02**: Per-file Surya batching with shared model (replace cross-file combined PDF approach)
-- [ ] **ARCH-03**: Resource-safe PDF handling (context managers for all fitz operations)
+- [x] **ARCH-03**: Resource-safe PDF handling (context managers for all fitz operations)
 - [ ] **ARCH-04**: Coordinate CPU usage (pool workers × jobs_per_file ≤ total cores)
 - [ ] **ARCH-05**: Surya models loaded once per pipeline run, shared across files in main process
 
@@ -46,13 +46,13 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Code Cleanup
 
-- [ ] **CLEAN-01**: Dead code removed (run_surya_on_pages, stale LEVINAS references)
-- [ ] **CLEAN-02**: Invalid type annotations fixed (lowercase `callable`)
+- [x] **CLEAN-01**: Dead code removed (run_surya_on_pages, stale LEVINAS references)
+- [x] **CLEAN-02**: Invalid type annotations fixed (lowercase `callable`)
 
 ### Testing
 
 - [ ] **TEST-01**: Unit tests for quality analysis (scoring, whitelists, edge cases)
-- [ ] **TEST-02**: Unit tests for PDF processor operations (extract, combine, text extraction)
+- [x] **TEST-02**: Unit tests for PDF processor operations (extract, combine, text extraction)
 - [ ] **TEST-03**: Integration tests for pipeline orchestration (Phase 1 → Phase 2 flow)
 - [ ] **TEST-04**: Test verifying Surya output actually appears in final output file
 
@@ -89,13 +89,13 @@ Deferred to future release. Tracked but not in current roadmap.
 |-------------|-------|--------|
 | BUG-01 | Phase 4 | Pending |
 | BUG-02 | Phase 4 | Pending |
-| API-01 | Phase 1 | Pending |
-| API-02 | Phase 1 | Pending |
-| API-03 | Phase 1 | Pending |
-| API-04 | Phase 1 | Pending |
+| API-01 | Phase 1 | Complete |
+| API-02 | Phase 1 | Complete |
+| API-03 | Phase 1 | Complete |
+| API-04 | Phase 1 | Complete |
 | ARCH-01 | Phase 4 | Pending |
 | ARCH-02 | Phase 4 | Pending |
-| ARCH-03 | Phase 1 | Pending |
+| ARCH-03 | Phase 1 | Complete |
 | ARCH-04 | Phase 4 | Pending |
 | ARCH-05 | Phase 3 | Pending |
 | QUAL-01 | Phase 2 | Pending |
@@ -106,10 +106,10 @@ Deferred to future release. Tracked but not in current roadmap.
 | CLI-01 | Phase 5 | Pending |
 | CLI-02 | Phase 5 | Pending |
 | CLI-03 | Phase 5 | Pending |
-| CLEAN-01 | Phase 1 | Pending |
-| CLEAN-02 | Phase 1 | Pending |
+| CLEAN-01 | Phase 1 | Complete |
+| CLEAN-02 | Phase 1 | Complete |
 | TEST-01 | Phase 2 | Pending |
-| TEST-02 | Phase 1 | Pending |
+| TEST-02 | Phase 1 | Complete |
 | TEST-03 | Phase 4 | Pending |
 | TEST-04 | Phase 4 | Pending |
 
