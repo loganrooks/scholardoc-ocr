@@ -6,32 +6,33 @@ See: .planning/PROJECT.md (updated 2026-01-28)
 
 **Core value:** Produce accurate OCR text from scanned academic PDFs with minimal manual intervention, using quality-gated fallback to avoid expensive neural OCR unless needed.
 
-**Current focus:** Phase 1 verified complete. Ready for Phase 2.
+**Current focus:** Phase 2 complete. Ready for Phase 3.
 
 ## Current Position
 
 Phase: 2 of 5 (Quality Analysis Enhancement)
-Plan: 02-01 and 02-02 complete (wave 1)
-Status: In progress
-Last activity: 2026-01-29 — Completed 02-01-PLAN.md
+Plan: 3 of 3 complete
+Status: Phase complete
+Last activity: 2026-01-29 — Completed 02-03-PLAN.md
 
-Progress: [██████░░░░] 60%
+Progress: [████████░░] 80%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 5
-- Average duration: ~2 min
-- Total execution time: ~0.15 hours
+- Total plans completed: 7
+- Average duration: ~2.5 min
+- Total execution time: ~0.3 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 1 | 4/4 | ~8m | ~2m |
+| 2 | 3/3 | ~9m | ~3m |
 
 **Recent Trend:**
-- Last 5 plans: 01-02 (~2m), 01-03 (~2m), 01-04 (~2m), 02-01 (~3m)
+- Last 5 plans: 01-03 (~2m), 01-04 (~2m), 02-01 (~3m), 02-02 (~3m), 02-03 (~3m)
 - Trend: Stable
 
 *Updated after each plan completion*
@@ -50,6 +51,8 @@ Recent decisions affecting current work:
 - [Init]: Improve quality analysis — Current regex approach misses structural/layout errors and systematic misrecognitions
 - [02-01]: Three-tier dictionary scoring (known/structured/garbled) — Nuanced scoring avoids penalizing valid non-dictionary words
 - [02-01]: German suffix-based consonant cluster suppression — Exempts German compound words from false positive detection
+- [02-03]: Composite weights garbled:0.4 dictionary:0.3 confidence:0.3 — Balanced multi-signal scoring with reweighting for missing signals
+- [02-03]: Signal floors for per-signal minimum gates — Catches pages where one signal is critically low even if composite passes
 
 ### Pending Todos
 
@@ -62,5 +65,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-01-29
-Stopped at: Completed 02-01-PLAN.md
+Stopped at: Completed 02-03-PLAN.md (Phase 2 complete)
 Resume file: None
