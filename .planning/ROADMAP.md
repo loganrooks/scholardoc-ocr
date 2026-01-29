@@ -57,10 +57,12 @@ Plans:
   5. Academic term whitelists include German philosophical vocabulary
   6. Quality analysis has comprehensive unit tests covering scoring edge cases
 
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 02-01: [To be determined during planning]
+- [ ] 02-01-PLAN.md — Dictionary signal module, bundled word list, German vocabulary
+- [ ] 02-02-PLAN.md — Tesseract confidence extraction module (pytesseract)
+- [ ] 02-03-PLAN.md — Composite quality analyzer refactor and unit tests
 
 ### Phase 3: OCR Backend Modules
 **Goal**: Extract Tesseract and Surya OCR operations from monolithic processor into focused, testable backend modules with proper model lifecycle management.
