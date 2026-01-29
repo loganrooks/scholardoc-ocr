@@ -29,9 +29,8 @@ class QualityAnalyzer:
     ]
 
     # Known philosophical/academic terms that look like garbled text but aren't
-    # (German, Greek transliterations, technical terms)
-    VALID_TERMS = frozenset({
-        # German philosophical terms (Heidegger, Husserl, etc.)
+    # Covers: German (Kant, Hegel, Husserl, Heidegger), French, Greek transliterations
+    _HEIDEGGER_TERMS = frozenset({
         "erschlossenheit", "befindlichkeit", "geworfenheit", "eigentlichkeit",
         "uneigentlichkeit", "vorhandenheit", "zuhandenheit", "mitsein", "dasein",
         "zeitlichkeit", "geschichtlichkeit", "weltlichkeit", "sorge", "schuld",
@@ -39,12 +38,59 @@ class QualityAnalyzer:
         "gewesenheit", "gegenwärtigen", "gewärtigen", "verstehen", "auslegung",
         "rede", "gerede", "neugier", "zweideutigkeit", "verfallenheit",
         "angst", "furcht", "langeweile", "stimmung", "befindlich",
-        # French terms common in Levinas
+        "lichtung", "gestell", "ereignis", "kehre", "gelassenheit",
+        "grundstimmung", "unverborgenheit", "seinsgeschichte",
+    })
+
+    _KANT_TERMS = frozenset({
+        "vernunft", "verstand", "anschauung", "urteilskraft", "pflicht",
+        "kategorisch", "imperativ", "transzendental", "apriorisch", "erkenntnis",
+        "erscheinung", "noumenon", "ding", "einbildungskraft", "sinnlichkeit",
+        "empfindung", "wahrnehmung",
+    })
+
+    _HEGEL_TERMS = frozenset({
+        "geist", "aufhebung", "dialektik", "synthese", "entfremdung",
+        "selbstbewusstsein", "absolut", "vermittlung", "wirklichkeit",
+    })
+
+    _HUSSERL_TERMS = frozenset({
+        "intentionalität", "epoché", "reduktion", "lebenswelt",
+        "noesis", "noema", "konstitution", "evidenz",
+    })
+
+    GERMAN_PHILOSOPHY_TERMS = frozenset({
+        # Common philosophical German
+        "wissenschaft", "grundlegung", "weltanschauung", "vorstellung",
+        "bestimmung", "begrifflichkeit", "zusammenhang", "beziehung",
+        "freiheit", "wahrheit", "sein", "seiende", "nichts", "wesen",
+        "bedeutung", "sinn", "zweck", "grund", "ursache", "wirkung",
+        "vorurteil", "bildung", "erfahrung", "geschichte", "natur", "kultur",
+        "gesellschaft", "gemeinschaft", "freundschaft", "eigenschaft",
+        "grundsätzlichkeit", "freundlichkeit", "möglichkeit", "notwendigkeit",
+        "widerspruch", "gegensatz", "einheit", "vielheit", "allgemeinheit",
+        "besonderheit", "einzelheit", "substanz", "subjekt", "objekt",
+        "bewusstsein", "unbewusstes", "trieb", "wille", "macht",
+    }) | _HEIDEGGER_TERMS | _KANT_TERMS | _HEGEL_TERMS | _HUSSERL_TERMS
+
+    _FRENCH_TERMS = frozenset({
         "autrement", "visage", "infini", "totalité", "altérité",
-        # Greek transliterations
+        "jouissance", "fécondité", "proximité", "responsabilité",
+        "substitution", "signification", "conscience", "différence",
+        "présence", "absence", "parole", "écriture", "discours",
+    })
+
+    _GREEK_TERMS = frozenset({
         "aletheia", "phronesis", "episteme", "techne", "theoria", "praxis",
         "ousia", "eidos", "logos", "nous", "psyche", "pneuma",
+        "arche", "telos", "dynamis", "energeia", "entelecheia",
+        "eudaimonia", "arete", "sophia", "doxa", "noesis",
     })
+
+    VALID_TERMS = GERMAN_PHILOSOPHY_TERMS | _FRENCH_TERMS | _GREEK_TERMS
+
+    # German compound word suffixes - words ending with these skip consonant_cluster check
+    GERMAN_SUFFIXES = ("keit", "heit", "ung", "schaft", "lich", "isch", "tum", "nis")
 
     # Common valid short words across English/French/Latin
     VALID_SHORT = frozenset({
@@ -134,7 +180,11 @@ class QualityAnalyzer:
 
             if not is_garbled:
                 # Check garbled patterns
+                # Pre-check: words with German suffixes skip consonant_cluster detection
+                has_german_suffix = word_clean.lower().endswith(self.GERMAN_SUFFIXES)
                 for pattern, ptype in self.PATTERNS:
+                    if ptype == "consonant_cluster" and has_german_suffix:
+                        continue
                     if pattern.search(word_clean):
                         is_garbled = True
                         issue_type = ptype
