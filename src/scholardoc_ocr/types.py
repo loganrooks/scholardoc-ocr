@@ -146,3 +146,13 @@ class BatchResult:
     def to_json(self, include_text: bool = False, indent: int = 2) -> str:
         """Serialize to JSON string."""
         return json.dumps(self.to_dict(include_text=include_text), indent=indent)
+
+
+@dataclass
+class SignalResult:
+    """Result from a quality signal module."""
+
+    name: str
+    score: float  # 0.0-1.0, higher is better
+    passed: bool
+    details: dict
