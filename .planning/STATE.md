@@ -6,21 +6,21 @@ See: .planning/PROJECT.md (updated 2026-01-28)
 
 **Core value:** Produce accurate OCR text from scanned academic PDFs with minimal manual intervention, using quality-gated fallback to avoid expensive neural OCR unless needed.
 
-**Current focus:** Phase 4 in progress. Pipeline rewrite complete, CLI and tests remaining.
+**Current focus:** Phase 4 complete. All engine orchestration plans done. Ready for Phase 5.
 
 ## Current Position
 
 Phase: 4 of 5 (Engine Orchestration)
-Plan: 2 of 3 complete
-Status: In progress
-Last activity: 2026-01-29 — Completed 04-02-PLAN.md
+Plan: 3 of 3 complete
+Status: Phase complete
+Last activity: 2026-01-29 — Completed 04-03-PLAN.md
 
-Progress: [████████████░░] 80% (12/15 plans)
+Progress: [█████████████░] 87% (13/15 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 11
+- Total plans completed: 13
 - Average duration: ~2.5 min
 - Total execution time: ~0.5 hours
 
@@ -31,10 +31,10 @@ Progress: [████████████░░] 80% (12/15 plans)
 | 1 | 4/4 | ~8m | ~2m |
 | 2 | 3/3 | ~9m | ~3m |
 | 3 | 3/3 | ~8m | ~2.5m |
-| 4 | 2/3 | ~5m | ~2.5m |
+| 4 | 3/3 | ~8m | ~2.5m |
 
 **Recent Trend:**
-- Last 5 plans: 03-01 (~3m), 03-02 (~3m), 03-03 (~2m), 04-01 (~3m)
+- Last 5 plans: 03-02 (~3m), 03-03 (~2m), 04-01 (~3m), 04-02 (~2m), 04-03 (~3m)
 - Trend: Stable
 
 *Updated after each plan completion*
@@ -60,6 +60,7 @@ Recent decisions affecting current work:
 - [04-01]: Surya markdown placed at first flagged page slot (combined output)
 - [04-01]: Lazy surya import in run_pipeline to avoid heavy ML deps
 - [04-02]: CLI as thin presentation wrapper; only prints final summary
+- [04-03]: Patch surya functions directly (not pipeline.surya) due to lazy import pattern
 
 ### Pending Todos
 
@@ -72,5 +73,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-01-29
-Stopped at: Completed 04-02-PLAN.md
+Stopped at: Completed 04-03-PLAN.md
 Resume file: None
