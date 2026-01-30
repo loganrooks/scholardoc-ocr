@@ -9,8 +9,8 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Critical Bug Fixes
 
-- [ ] **BUG-01**: Surya OCR results written back to output files (currently discarded at pipeline.py:564-567)
-- [ ] **BUG-02**: Surya batch output correctly extracted from rendered markdown (currently re-reads original bad text at processor.py:309-312)
+- [x] **BUG-01**: Surya OCR results written back to output files (currently discarded at pipeline.py:564-567)
+- [x] **BUG-02**: Surya batch output correctly extracted from rendered markdown (currently re-reads original bad text at processor.py:309-312)
 
 ### Library API
 
@@ -21,10 +21,10 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Architecture
 
-- [ ] **ARCH-01**: Pipeline orchestration separated from UI presentation
-- [ ] **ARCH-02**: Per-file Surya batching with shared model (replace cross-file combined PDF approach)
+- [x] **ARCH-01**: Pipeline orchestration separated from UI presentation
+- [x] **ARCH-02**: Per-file Surya batching with shared model (replace cross-file combined PDF approach)
 - [x] **ARCH-03**: Resource-safe PDF handling (context managers for all fitz operations)
-- [ ] **ARCH-04**: Coordinate CPU usage (pool workers × jobs_per_file ≤ total cores)
+- [x] **ARCH-04**: Coordinate CPU usage (pool workers × jobs_per_file ≤ total cores)
 - [x] **ARCH-05**: Surya models loaded once per pipeline run, shared across files in main process
 
 ### Quality Analysis
@@ -53,8 +53,8 @@ Requirements for initial release. Each maps to roadmap phases.
 
 - [x] **TEST-01**: Unit tests for quality analysis (scoring, whitelists, edge cases)
 - [x] **TEST-02**: Unit tests for PDF processor operations (extract, combine, text extraction)
-- [ ] **TEST-03**: Integration tests for pipeline orchestration (Phase 1 → Phase 2 flow)
-- [ ] **TEST-04**: Test verifying Surya output actually appears in final output file
+- [x] **TEST-03**: Integration tests for pipeline orchestration (Phase 1 → Phase 2 flow)
+- [x] **TEST-04**: Test verifying Surya output actually appears in final output file
 
 ## v2 Requirements
 
@@ -87,16 +87,16 @@ Deferred to future release. Tracked but not in current roadmap.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| BUG-01 | Phase 4 | Pending |
-| BUG-02 | Phase 4 | Pending |
+| BUG-01 | Phase 4 | Complete |
+| BUG-02 | Phase 4 | Complete |
 | API-01 | Phase 1 | Complete |
 | API-02 | Phase 1 | Complete |
 | API-03 | Phase 1 | Complete |
 | API-04 | Phase 1 | Complete |
-| ARCH-01 | Phase 4 | Pending |
-| ARCH-02 | Phase 4 | Pending |
+| ARCH-01 | Phase 4 | Complete |
+| ARCH-02 | Phase 4 | Complete |
 | ARCH-03 | Phase 1 | Complete |
-| ARCH-04 | Phase 4 | Pending |
+| ARCH-04 | Phase 4 | Complete |
 | ARCH-05 | Phase 3 | Complete |
 | QUAL-01 | Phase 2 | Complete |
 | QUAL-02 | Phase 2 | Complete |
@@ -110,8 +110,8 @@ Deferred to future release. Tracked but not in current roadmap.
 | CLEAN-02 | Phase 1 | Complete |
 | TEST-01 | Phase 2 | Complete |
 | TEST-02 | Phase 1 | Complete |
-| TEST-03 | Phase 4 | Pending |
-| TEST-04 | Phase 4 | Pending |
+| TEST-03 | Phase 4 | Complete |
+| TEST-04 | Phase 4 | Complete |
 
 **Coverage:**
 - v1 requirements: 25 total

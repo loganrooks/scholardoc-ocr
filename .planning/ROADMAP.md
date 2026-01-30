@@ -15,7 +15,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: Foundation and Data Structures** - Clean API contracts, context managers, exception hierarchy
 - [x] **Phase 2: Quality Analysis Enhancement** - Multi-signal scoring with confidence, dictionary, German support
 - [x] **Phase 3: OCR Backend Modules** - Extract Tesseract/Surya wrappers, fix model lifecycle
-- [ ] **Phase 4: Engine Orchestration** - Per-file batching, fix Surya writeback, resource-aware parallelism
+- [x] **Phase 4: Engine Orchestration** - Per-file batching, fix Surya writeback, resource-aware parallelism
 - [ ] **Phase 5: CLI Presentation Layer** - Thin CLI wrapper around library API, preserve interface
 
 ## Phase Details
@@ -103,9 +103,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 04-01-PLAN.md — Rewrite pipeline.py with per-file Surya batching, writeback, and resource-aware parallelism
-- [ ] 04-02-PLAN.md — Update CLI with --force-surya flag and BatchResult formatting, export pipeline API
-- [ ] 04-03-PLAN.md — Pipeline integration tests (writeback verification, partial failure, force_surya)
+- [x] 04-01-PLAN.md — Rewrite pipeline.py with per-file Surya batching, writeback, and resource-aware parallelism
+- [x] 04-02-PLAN.md — Update CLI with --force-surya flag and BatchResult formatting, export pipeline API
+- [x] 04-03-PLAN.md — Pipeline integration tests (writeback verification, partial failure, force_surya)
 
 ### Phase 5: CLI Presentation Layer
 **Goal**: Create thin CLI wrapper around library API that preserves existing interface while enabling programmatic use.
@@ -136,5 +136,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | 1. Foundation and Data Structures | 4/4 | Complete ✓ | 2026-01-29 |
 | 2. Quality Analysis Enhancement | 3/3 | Complete ✓ | 2026-01-29 |
 | 3. OCR Backend Modules | 3/3 | Complete ✓ | 2026-01-29 |
-| 4. Engine Orchestration | 0/? | Not started | - |
+| 4. Engine Orchestration | 3/3 | Complete ✓ | 2026-01-29 |
 | 5. CLI Presentation Layer | 0/? | Not started | - |
