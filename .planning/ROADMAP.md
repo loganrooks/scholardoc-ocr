@@ -16,7 +16,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 2: Quality Analysis Enhancement** - Multi-signal scoring with confidence, dictionary, German support
 - [x] **Phase 3: OCR Backend Modules** - Extract Tesseract/Surya wrappers, fix model lifecycle
 - [x] **Phase 4: Engine Orchestration** - Per-file batching, fix Surya writeback, resource-aware parallelism
-- [ ] **Phase 5: CLI Presentation Layer** - Thin CLI wrapper around library API, preserve interface
+- [x] **Phase 5: CLI Presentation Layer** - Thin CLI wrapper around library API, preserve interface
 
 ## Phase Details
 
@@ -124,8 +124,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 05-01-PLAN.md — Language config, PipelineConfig language fields, recursive file discovery fix
-- [ ] 05-02-PLAN.md — RichCallback, new CLI flags, Rich summary table, CLI rewrite
+- [x] 05-01-PLAN.md — Language config, PipelineConfig language fields, recursive file discovery fix
+- [x] 05-02-PLAN.md — RichCallback, new CLI flags, Rich summary table, CLI rewrite
 
 ## Progress
 
@@ -138,4 +138,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | 2. Quality Analysis Enhancement | 3/3 | Complete ✓ | 2026-01-29 |
 | 3. OCR Backend Modules | 3/3 | Complete ✓ | 2026-01-29 |
 | 4. Engine Orchestration | 3/3 | Complete ✓ | 2026-01-29 |
-| 5. CLI Presentation Layer | 0/? | Not started | - |
+| 5. CLI Presentation Layer | 2/2 | Complete ✓ | 2026-01-30 |

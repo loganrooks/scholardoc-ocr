@@ -40,9 +40,9 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### CLI
 
-- [ ] **CLI-01**: CLI wraps library API (thin presentation layer)
-- [ ] **CLI-02**: Existing CLI interface (`ocr` command, current flags) preserved
-- [ ] **CLI-03**: Recursive mode file path handling fixed
+- [x] **CLI-01**: CLI wraps library API (thin presentation layer)
+- [x] **CLI-02**: Existing CLI interface (`ocr` command, current flags) preserved
+- [x] **CLI-03**: Recursive mode file path handling fixed
 
 ### Code Cleanup
 
