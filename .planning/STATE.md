@@ -6,21 +6,21 @@ See: .planning/PROJECT.md (updated 2026-01-28)
 
 **Core value:** Produce accurate OCR text from scanned academic PDFs with minimal manual intervention, using quality-gated fallback to avoid expensive neural OCR unless needed.
 
-**Current focus:** Phase 4 verified complete. Ready for Phase 5.
+**Current focus:** Phase 5 in progress. Plan 01 complete.
 
 ## Current Position
 
-Phase: 4 of 5 (Engine Orchestration)
-Plan: 3 of 3 complete
-Status: Phase verified ✓
-Last activity: 2026-01-29 — Phase 4 verified complete
+Phase: 5 of 5 (CLI Presentation Layer)
+Plan: 1 of 2 complete
+Status: In progress
+Last activity: 2026-01-30 — Completed 05-01-PLAN.md
 
-Progress: [█████████████░] 87% (13/15 plans)
+Progress: [██████████████░] 93% (14/15 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 13
+- Total plans completed: 14
 - Average duration: ~2.5 min
 - Total execution time: ~0.5 hours
 
@@ -32,9 +32,10 @@ Progress: [█████████████░] 87% (13/15 plans)
 | 2 | 3/3 | ~9m | ~3m |
 | 3 | 3/3 | ~8m | ~2.5m |
 | 4 | 3/3 | ~8m | ~2.5m |
+| 5 | 1/2 | ~2m | ~2m |
 
 **Recent Trend:**
-- Last 5 plans: 03-02 (~3m), 03-03 (~2m), 04-01 (~3m), 04-02 (~2m), 04-03 (~3m)
+- Last 5 plans: 03-03 (~2m), 04-01 (~3m), 04-02 (~2m), 04-03 (~3m), 05-01 (~2m)
 - Trend: Stable
 
 *Updated after each plan completion*
@@ -61,6 +62,8 @@ Recent decisions affecting current work:
 - [04-01]: Lazy surya import in run_pipeline to avoid heavy ML deps
 - [04-02]: CLI as thin presentation wrapper; only prints final summary
 - [04-03]: Patch surya functions directly (not pipeline.surya) due to lazy import pattern
+- [05-01]: ValueError on unknown language codes (fail fast)
+- [05-01]: Default languages include German (deu/de) for academic philosophy texts
 
 ### Pending Todos
 
@@ -68,10 +71,10 @@ None yet.
 
 ### Blockers/Concerns
 
-None yet.
+- Pre-existing test collection error: test_callbacks.py imports removed `ExtendedResult` from pipeline.py
 
 ## Session Continuity
 
-Last session: 2026-01-29
-Stopped at: Phase 4 verified complete
+Last session: 2026-01-30
+Stopped at: Completed 05-01-PLAN.md
 Resume file: None
