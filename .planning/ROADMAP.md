@@ -100,10 +100,12 @@ Plans:
   5. Integration test verifies Surya text actually appears in final output file
   6. Pipeline orchestration separated from UI presentation (library vs CLI concerns)
 
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 04-01: [To be determined during planning]
+- [ ] 04-01-PLAN.md — Rewrite pipeline.py with per-file Surya batching, writeback, and resource-aware parallelism
+- [ ] 04-02-PLAN.md — Update CLI with --force-surya flag and BatchResult formatting, export pipeline API
+- [ ] 04-03-PLAN.md — Pipeline integration tests (writeback verification, partial failure, force_surya)
 
 ### Phase 5: CLI Presentation Layer
 **Goal**: Create thin CLI wrapper around library API that preserves existing interface while enabling programmatic use.
