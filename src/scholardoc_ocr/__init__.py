@@ -14,12 +14,14 @@ from .exceptions import (
 )
 from .pipeline import PipelineConfig, run_pipeline
 from .types import (
+    LANGUAGE_MAP,
     BatchResult,
     FileResult,
     OCREngine,
     PageResult,
     PageStatus,
     ProcessingPhase,
+    resolve_languages,
 )
 
 __all__ = [
@@ -31,6 +33,8 @@ __all__ = [
     "OCREngine",
     "ProcessingPhase",
     "PageStatus",
+    "LANGUAGE_MAP",
+    "resolve_languages",
     # Callbacks
     "PipelineCallback",
     "LoggingCallback",

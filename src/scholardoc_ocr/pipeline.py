@@ -37,6 +37,8 @@ class PipelineConfig:
     max_samples: int = 20
     max_workers: int = 4
     files: list[str] = field(default_factory=list)
+    langs_tesseract: str = "eng,fra,ell,lat,deu"
+    langs_surya: str = "en,fr,el,la,de"
 
 
 def _tesseract_worker(
@@ -246,7 +248,8 @@ def run_pipeline(
 
     # Prepare config dict (picklable)
     config_dict = {
-        "langs_tesseract": ["eng", "fra", "ell", "lat"],
+        "langs_tesseract": config.langs_tesseract.split(","),
+        "langs_surya": config.langs_surya.split(","),
         "quality_threshold": config.quality_threshold,
         "force_tesseract": config.force_tesseract,
         "debug": config.debug,
@@ -354,8 +357,11 @@ def run_pipeline(
                 )
 
                 # Convert with Surya (BUG-02 fix: text comes from convert_pdf markdown)
+                from .surya import SuryaConfig
+
+                surya_cfg = SuryaConfig(langs=config.langs_surya)
                 surya_markdown = surya.convert_pdf(
-                    input_path, model_dict, page_range=bad_indices
+                    input_path, model_dict, config=surya_cfg, page_range=bad_indices
                 )
 
                 # BUG-01 fix: Write Surya text back to output .txt file

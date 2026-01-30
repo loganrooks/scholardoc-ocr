@@ -6,6 +6,48 @@ import json
 from dataclasses import dataclass, field
 from enum import StrEnum
 
+# ISO 639-1 to engine-specific language code mapping
+LANGUAGE_MAP: dict[str, dict[str, str]] = {
+    "en": {"tesseract": "eng", "surya": "en"},
+    "fr": {"tesseract": "fra", "surya": "fr"},
+    "de": {"tesseract": "deu", "surya": "de"},
+    "el": {"tesseract": "ell", "surya": "el"},
+    "la": {"tesseract": "lat", "surya": "la"},
+}
+
+_DEFAULT_TESSERACT = "eng,fra,ell,lat,deu"
+_DEFAULT_SURYA = "en,fr,el,la,de"
+
+
+def resolve_languages(iso_codes: list[str]) -> tuple[str, str]:
+    """Resolve ISO 639-1 codes to Tesseract and Surya language strings.
+
+    Args:
+        iso_codes: List of ISO 639-1 language codes (e.g. ["en", "fr"]).
+            If empty, returns default language sets.
+
+    Returns:
+        Tuple of (tesseract_langs, surya_langs) as comma-separated strings.
+
+    Raises:
+        ValueError: If an unrecognized language code is provided.
+    """
+    if not iso_codes:
+        return (_DEFAULT_TESSERACT, _DEFAULT_SURYA)
+
+    tess_langs = []
+    surya_langs = []
+    for code in iso_codes:
+        if code not in LANGUAGE_MAP:
+            raise ValueError(
+                f"Unsupported language code: {code!r}. "
+                f"Supported: {', '.join(sorted(LANGUAGE_MAP))}"
+            )
+        tess_langs.append(LANGUAGE_MAP[code]["tesseract"])
+        surya_langs.append(LANGUAGE_MAP[code]["surya"])
+
+    return (",".join(tess_langs), ",".join(surya_langs))
+
 
 class OCREngine(StrEnum):
     """OCR engine used for processing."""
