@@ -11,11 +11,11 @@ See: .planning/PROJECT.md (updated 2026-01-28)
 ## Current Position
 
 Phase: 4 of 5 (Engine Orchestration)
-Plan: 1 of 3 complete
+Plan: 2 of 3 complete
 Status: In progress
-Last activity: 2026-01-29 — Completed 04-01-PLAN.md
+Last activity: 2026-01-29 — Completed 04-02-PLAN.md
 
-Progress: [███████████░░░] 73% (11/15 plans)
+Progress: [████████████░░] 80% (12/15 plans)
 
 ## Performance Metrics
 
@@ -31,7 +31,7 @@ Progress: [███████████░░░] 73% (11/15 plans)
 | 1 | 4/4 | ~8m | ~2m |
 | 2 | 3/3 | ~9m | ~3m |
 | 3 | 3/3 | ~8m | ~2.5m |
-| 4 | 1/3 | ~3m | ~3m |
+| 4 | 2/3 | ~5m | ~2.5m |
 
 **Recent Trend:**
 - Last 5 plans: 03-01 (~3m), 03-02 (~3m), 03-03 (~2m), 04-01 (~3m)
@@ -59,6 +59,7 @@ Recent decisions affecting current work:
 - [03-03]: PDFProcessor is PDF-manipulation-only
 - [04-01]: Surya markdown placed at first flagged page slot (combined output)
 - [04-01]: Lazy surya import in run_pipeline to avoid heavy ML deps
+- [04-02]: CLI as thin presentation wrapper; only prints final summary
 
 ### Pending Todos
 
@@ -71,5 +72,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-01-29
-Stopped at: Completed 04-01-PLAN.md
+Stopped at: Completed 04-02-PLAN.md
 Resume file: None
