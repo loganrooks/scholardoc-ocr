@@ -6,21 +6,21 @@ See: .planning/PROJECT.md (updated 2026-01-28)
 
 **Core value:** Produce accurate OCR text from scanned academic PDFs with minimal manual intervention, using quality-gated fallback to avoid expensive neural OCR unless needed.
 
-**Current focus:** Phase 5 in progress. Plan 01 complete.
+**Current focus:** All phases complete.
 
 ## Current Position
 
 Phase: 5 of 5 (CLI Presentation Layer)
-Plan: 1 of 2 complete
-Status: In progress
-Last activity: 2026-01-30 — Completed 05-01-PLAN.md
+Plan: 2 of 2 complete
+Status: Complete
+Last activity: 2026-01-30 — Completed 05-02-PLAN.md
 
-Progress: [██████████████░] 93% (14/15 plans)
+Progress: [███████████████] 100% (15/15 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 14
+- Total plans completed: 15
 - Average duration: ~2.5 min
 - Total execution time: ~0.5 hours
 
@@ -32,10 +32,10 @@ Progress: [██████████████░] 93% (14/15 plans)
 | 2 | 3/3 | ~9m | ~3m |
 | 3 | 3/3 | ~8m | ~2.5m |
 | 4 | 3/3 | ~8m | ~2.5m |
-| 5 | 1/2 | ~2m | ~2m |
+| 5 | 2/2 | ~4m | ~2m |
 
 **Recent Trend:**
-- Last 5 plans: 03-03 (~2m), 04-01 (~3m), 04-02 (~2m), 04-03 (~3m), 05-01 (~2m)
+- Last 5 plans: 04-01 (~3m), 04-02 (~2m), 04-03 (~3m), 05-01 (~2m), 05-02 (~1.5m)
 - Trend: Stable
 
 *Updated after each plan completion*
@@ -64,10 +64,11 @@ Recent decisions affecting current work:
 - [04-03]: Patch surya functions directly (not pipeline.surya) due to lazy import pattern
 - [05-01]: ValueError on unknown language codes (fail fast)
 - [05-01]: Default languages include German (deu/de) for academic philosophy texts
+- [05-02]: CLI rewritten with Rich progress bars, summary table, new flags
 
 ### Pending Todos
 
-None yet.
+None.
 
 ### Blockers/Concerns
 
@@ -76,5 +77,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-01-30
-Stopped at: Completed 05-01-PLAN.md
+Stopped at: Completed 05-02-PLAN.md (final plan)
 Resume file: None
