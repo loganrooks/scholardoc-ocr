@@ -121,10 +121,11 @@ Plans:
   4. Rich progress callbacks implemented as one option for progress reporting
   5. CLI can be completely rewritten without touching library code
 
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 05-01: [To be determined during planning]
+- [ ] 05-01-PLAN.md — Language config, PipelineConfig language fields, recursive file discovery fix
+- [ ] 05-02-PLAN.md — RichCallback, new CLI flags, Rich summary table, CLI rewrite
 
 ## Progress
 
