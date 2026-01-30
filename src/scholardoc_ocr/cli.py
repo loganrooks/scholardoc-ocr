@@ -168,9 +168,9 @@ Examples:
     else:
         # Auto-discover PDFs in input directory
         if args.recursive:
-            pdf_files = [p.name for p in input_dir.rglob("*.pdf")]
+            pdf_files = [str(p.relative_to(input_dir)) for p in input_dir.rglob("*.pdf")]
         else:
-            pdf_files = [p.name for p in input_dir.glob("*.pdf")]
+            pdf_files = [str(p.relative_to(input_dir)) for p in input_dir.glob("*.pdf")]
 
         if not pdf_files:
             print(f"No PDF files found in {input_dir}")
