@@ -12,6 +12,7 @@ from .exceptions import (
     SuryaError,
     TesseractError,
 )
+from .pipeline import PipelineConfig, run_pipeline
 from .types import (
     BatchResult,
     FileResult,
@@ -42,6 +43,9 @@ __all__ = [
     "PDFError",
     "ConfigError",
     "DependencyError",
+    # Pipeline API
+    "PipelineConfig",
+    "run_pipeline",
     # OCR backend submodules (access via scholardoc_ocr.tesseract / scholardoc_ocr.surya)
     "tesseract",
     "surya",
