@@ -17,7 +17,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 3: OCR Backend Modules** - Extract Tesseract/Surya wrappers, fix model lifecycle
 - [x] **Phase 4: Engine Orchestration** - Per-file batching, fix Surya writeback, resource-aware parallelism
 - [x] **Phase 5: CLI Presentation Layer** - Thin CLI wrapper around library API, preserve interface
-- [ ] **Phase 6: MCP Server Integration** - Expose OCR pipeline as MCP tool for Claude Desktop
+- [x] **Phase 6: MCP Server Integration** - Expose OCR pipeline as MCP tool for Claude Desktop
 
 ## Phase Details
 
@@ -146,7 +146,7 @@ Plans:
 **Plans**: 1 plan
 
 Plans:
-- [ ] 06-01-PLAN.md — MCP server module with ocr tool, pyproject.toml updates
+- [x] 06-01-PLAN.md — MCP server module with ocr tool, pyproject.toml updates
 
 ## Progress
 
@@ -160,4 +160,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | 3. OCR Backend Modules | 3/3 | Complete ✓ | 2026-01-29 |
 | 4. Engine Orchestration | 3/3 | Complete ✓ | 2026-01-29 |
 | 5. CLI Presentation Layer | 2/2 | Complete ✓ | 2026-01-30 |
-| 6. MCP Server Integration | 0/? | Not started | - |
+| 6. MCP Server Integration | 1/1 | Complete ✓ | 2026-02-02 |

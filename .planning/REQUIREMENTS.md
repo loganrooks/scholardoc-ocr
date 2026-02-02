@@ -44,6 +44,14 @@ Requirements for initial release. Each maps to roadmap phases.
 - [x] **CLI-02**: Existing CLI interface (`ocr` command, current flags) preserved
 - [x] **CLI-03**: Recursive mode file path handling fixed
 
+### MCP Integration
+
+- [x] **MCP-01**: OCR pipeline callable as MCP tool from Claude Desktop
+- [x] **MCP-02**: Returns structured results with summary (metadata only — no full text in response)
+- [x] **MCP-03**: Optional extract_text parameter writes .txt file alongside output PDF; response includes file path only
+- [x] **MCP-04**: Optional page_range parameter (e.g. "45-80") to OCR only a subset of pages
+- [x] **MCP-05**: Optional output_name parameter to control the output filename
+
 ### Code Cleanup
 
 - [x] **CLEAN-01**: Dead code removed (run_surya_on_pages, stale LEVINAS references)
@@ -103,9 +111,14 @@ Deferred to future release. Tracked but not in current roadmap.
 | QUAL-03 | Phase 2 | Complete |
 | LANG-01 | Phase 2 | Complete |
 | LANG-02 | Phase 2 | Complete |
-| CLI-01 | Phase 5 | Pending |
-| CLI-02 | Phase 5 | Pending |
-| CLI-03 | Phase 5 | Pending |
+| CLI-01 | Phase 5 | Complete |
+| CLI-02 | Phase 5 | Complete |
+| CLI-03 | Phase 5 | Complete |
+| MCP-01 | Phase 6 | Complete |
+| MCP-02 | Phase 6 | Complete |
+| MCP-03 | Phase 6 | Complete |
+| MCP-04 | Phase 6 | Complete |
+| MCP-05 | Phase 6 | Complete |
 | CLEAN-01 | Phase 1 | Complete |
 | CLEAN-02 | Phase 1 | Complete |
 | TEST-01 | Phase 2 | Complete |
@@ -114,8 +127,8 @@ Deferred to future release. Tracked but not in current roadmap.
 | TEST-04 | Phase 4 | Complete |
 
 **Coverage:**
-- v1 requirements: 25 total
-- Mapped to phases: 25
+- v1 requirements: 30 total
+- Mapped to phases: 30
 - Unmapped: 0
 
 ---
