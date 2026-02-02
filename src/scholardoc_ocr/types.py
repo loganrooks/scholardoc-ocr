@@ -112,6 +112,7 @@ class FileResult:
     error: str | None = None
     time_seconds: float = 0.0
     phase_timings: dict[str, float] = field(default_factory=dict)
+    output_path: str | None = None
 
     @property
     def flagged_pages(self) -> list[PageResult]:
@@ -137,6 +138,8 @@ class FileResult:
         }
         if self.error is not None:
             d["error"] = self.error
+        if self.output_path is not None:
+            d["output_path"] = self.output_path
         return d
 
 
