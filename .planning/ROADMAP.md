@@ -18,7 +18,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 4: Engine Orchestration** - Per-file batching, fix Surya writeback, resource-aware parallelism
 - [x] **Phase 5: CLI Presentation Layer** - Thin CLI wrapper around library API, preserve interface
 - [x] **Phase 6: MCP Server Integration** - Expose OCR pipeline as MCP tool for Claude Desktop
-- [ ] **Phase 7: Fix MCP output_path Integration** - Fix broken extract_text and output_name MCP features
+- [x] **Phase 7: Fix MCP output_path Integration** - Fix broken extract_text and output_name MCP features
 
 ## Phase Details
 
@@ -167,7 +167,7 @@ Plans:
 **Plans**: 1 plan
 
 Plans:
-- [ ] 07-01-PLAN.md — Add output_path to FileResult, populate in pipeline
+- [x] 07-01-PLAN.md — Add output_path to FileResult, populate in pipeline
 
 ## Progress
 
@@ -182,4 +182,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 4. Engine Orchestration | 3/3 | Complete ✓ | 2026-01-29 |
 | 5. CLI Presentation Layer | 2/2 | Complete ✓ | 2026-01-30 |
 | 6. MCP Server Integration | 1/1 | Complete ✓ | 2026-02-02 |
-| 7. Fix MCP output_path Integration | 0/1 | Pending | — |
+| 7. Fix MCP output_path Integration | 1/1 | Complete ✓ | 2026-02-02 |
