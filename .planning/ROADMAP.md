@@ -18,6 +18,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 4: Engine Orchestration** - Per-file batching, fix Surya writeback, resource-aware parallelism
 - [x] **Phase 5: CLI Presentation Layer** - Thin CLI wrapper around library API, preserve interface
 - [x] **Phase 6: MCP Server Integration** - Expose OCR pipeline as MCP tool for Claude Desktop
+- [ ] **Phase 7: Fix MCP output_path Integration** - Fix broken extract_text and output_name MCP features
 
 ## Phase Details
 
@@ -148,10 +149,30 @@ Plans:
 Plans:
 - [x] 06-01-PLAN.md — MCP server module with ocr tool, pyproject.toml updates
 
+### Phase 7: Fix MCP output_path Integration
+**Goal**: Fix broken MCP features (extract_text, output_name) by adding output_path to FileResult and populating it in the pipeline.
+
+**Depends on**: Phase 6 (fixes MCP integration gap)
+
+**Requirements**: MCP-02 (partial fix), MCP-03, MCP-05
+
+**Gap Closure**: Closes all gaps from v1 milestone audit.
+
+**Success Criteria** (what must be TRUE):
+  1. FileResult includes output_path field populated by pipeline
+  2. MCP extract_text=True writes .txt file alongside output PDF
+  3. MCP output_name parameter renames output file
+  4. MCP result dict includes output file location
+
+**Plans**: TBD
+
+Plans:
+- [ ] 07-01-PLAN.md — Add output_path to FileResult, populate in pipeline, fix MCP server
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
+Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -161,3 +182,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | 4. Engine Orchestration | 3/3 | Complete ✓ | 2026-01-29 |
 | 5. CLI Presentation Layer | 2/2 | Complete ✓ | 2026-01-30 |
 | 6. MCP Server Integration | 1/1 | Complete ✓ | 2026-02-02 |
+| 7. Fix MCP output_path Integration | 0/1 | Pending | — |
