@@ -164,10 +164,10 @@ Plans:
   3. MCP output_name parameter renames output file
   4. MCP result dict includes output file location
 
-**Plans**: TBD
+**Plans**: 1 plan
 
 Plans:
-- [ ] 07-01-PLAN.md — Add output_path to FileResult, populate in pipeline, fix MCP server
+- [ ] 07-01-PLAN.md — Add output_path to FileResult, populate in pipeline
 
 ## Progress
 
