@@ -5,16 +5,14 @@
 See: .planning/PROJECT.md (updated 2026-02-02)
 
 **Core value:** Produce accurate OCR text from scanned academic PDFs with minimal manual intervention, using quality-gated fallback to avoid expensive neural OCR unless needed.
-**Current focus:** Planning next milestone
+**Current focus:** v2.0 — Post-processing + Robustness
 
 ## Current Position
 
-Phase: v1.0 complete — all 7 phases shipped
-Plan: N/A
-Status: Milestone complete, ready for next milestone
-Last activity: 2026-02-02 — Completed quick/001 (remove brittle PATH hacks)
-
-Progress: [█████████████████] 100% (17/17 plans across 7 phases)
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements for v2.0
+Last activity: 2026-02-02 — Milestone v2.0 started
 
 ## Accumulated Context
 

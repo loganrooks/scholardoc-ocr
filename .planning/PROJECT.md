@@ -37,7 +37,24 @@ Produce accurate OCR text from scanned academic PDFs with minimal manual interve
 
 ### Active
 
-(None — define in next milestone via `/gsd:new-milestone`)
+**Post-Processing Pipeline (RAG quality):**
+- [ ] Dehyphenation with dictionary-aware edge cases
+- [ ] Line break normalization (paragraph detection)
+- [ ] Unicode normalization (ligatures, combining chars, soft hyphens)
+- [ ] Punctuation normalization
+- [ ] `--extract-text` flag triggering post-processing pipeline
+- [ ] RAG-ready .txt output alongside searchable PDF
+
+**Robustness & Debugging:**
+- [ ] Structured logging for worker processes (QueueHandler/QueueListener)
+- [ ] Detailed error capture (full tracebacks, structured format)
+- [ ] Environment validation on startup (tesseract binary, langs, TMPDIR)
+- [ ] Work directory cleanup on success (`--keep-intermediates` to override)
+
+**MCP/API Improvements:**
+- [ ] MCP timeout handling (async job with status checking)
+- [ ] Structured JSON results from MCP tool
+- [ ] Quality scores in JSON metadata alongside output
 
 ### Out of Scope
 
@@ -47,6 +64,10 @@ Produce accurate OCR text from scanned academic PDFs with minimal manual interve
 - Cloud deployment or API server — local tool for individual scholars
 - OCR training or model fine-tuning — use Tesseract and Surya as-is
 - Click migration for CLI — argparse works; migration adds risk for marginal benefit
+- Config file support (.scholardoc-ocr.yaml) — defer to v3.0; CLI flags sufficient for now
+- Dictionary-based spell correction — defer to v3.0; high effort, medium impact
+- Image preprocessing (cv2) — defer to v3.0; adds heavy dependency for uncertain gain
+- Per-region quality scoring — defer to v3.0; complex, benefits fewer documents
 
 ## Context
 
@@ -62,7 +83,9 @@ Complete rearchitecture from original 4-module monolith into clean layered archi
 - cli.py (presentation)
 - mcp_server.py (MCP integration)
 
-v2 candidates from REQUIREMENTS: dictionary-based validation (hunspell), n-gram perplexity scoring, layout consistency checks, configurable domain dictionaries, JSON output format, dry-run mode.
+v2.0 milestone: Post-processing pipeline for RAG-ready output + robustness/debugging improvements + MCP API enhancements. Motivated by real-world usage revealing OCR artifacts that hurt retrieval quality (dehyphenation, line breaks, unicode) and operational pain points (swallowed errors, MCP timeouts, environment issues).
+
+v3.0 candidates: dictionary-based spell correction, config file support, image preprocessing, per-region quality scoring, n-gram perplexity scoring, layout consistency checks, configurable domain dictionaries.
 
 ## Key Decisions
 
@@ -87,4 +110,4 @@ v2 candidates from REQUIREMENTS: dictionary-based validation (hunspell), n-gram 
 - **Tesseract-first**: Two-phase architecture is core value
 
 ---
-*Last updated: 2026-02-02 after v1.0 milestone*
+*Last updated: 2026-02-02 after v2.0 milestone start*
