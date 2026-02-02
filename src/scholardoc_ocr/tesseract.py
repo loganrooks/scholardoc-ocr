@@ -74,9 +74,13 @@ def run_ocr(
         logger.error("Missing dependency for Tesseract OCR: %s", exc)
         return TesseractResult(success=False, error=f"Missing dependency: {exc}")
     except Exception as exc:
+        import traceback
+
+        tb = traceback.format_exc()
         error_msg = f"{type(exc).__name__}: {exc}" if str(exc) else f"{type(exc).__name__}: {exc!r}"
-        logger.error("Tesseract OCR failed for %s: %s", input_path, error_msg)
-        return TesseractResult(success=False, error=error_msg)
+        full_msg = f"{error_msg}\n{tb}"
+        logger.error("Tesseract OCR failed for %s: %s", input_path, full_msg)
+        return TesseractResult(success=False, error=full_msg)
 
 
 def is_available() -> bool:
