@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -48,6 +49,16 @@ def run_ocr(
 
     if config is None:
         config = TesseractConfig()
+
+    import shutil
+
+    logger.error(
+        "Worker env: PATH=%s tesseract=%s gs=%s unpaper=%s",
+        os.environ.get("PATH", "UNSET"),
+        shutil.which("tesseract"),
+        shutil.which("gs"),
+        shutil.which("unpaper"),
+    )
 
     try:
         result = ocrmypdf.ocr(
