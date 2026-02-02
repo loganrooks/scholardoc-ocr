@@ -114,6 +114,7 @@ def _tesseract_worker(
                 pages=pages,
                 time_seconds=time.time() - start,
                 phase_timings=timings,
+                output_path=str(pdf_path),
             )
 
         # Run Tesseract
@@ -182,6 +183,7 @@ def _tesseract_worker(
             pages=pages,
             time_seconds=time.time() - start,
             phase_timings=timings,
+            output_path=str(pdf_path),
         )
 
     except Exception as e:
