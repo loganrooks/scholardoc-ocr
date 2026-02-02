@@ -1,0 +1,47 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo \"$CLAUDE_FILE_PATH\" | grep -qE '(\\.egg-info/|__pycache__/|dist/|build/)' && echo 'BLOCK: Do not edit generated/build files' && exit 1 || exit 0",
+            "timeout": 5000
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if echo \"$CLAUDE_FILE_PATH\" | grep -q '\\.py$'; then ruff check --fix --quiet \"$CLAUDE_FILE_PATH\" 2>/dev/null; ruff format --quiet \"$CLAUDE_FILE_PATH\" 2>/dev/null; fi",
+            "timeout": 10000
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .claude/hooks/gsd-check-update.js"
+          }
+        ]
+      }
+    ]
+  },
+  "enabledPlugins": {
+    "ralph-loop@claude-plugins-official": false,
+    "serena@claude-plugins-official": true,
+    "claude-code-setup@claude-plugins-official": false
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "node .claude/hooks/gsd-statusline.js"
+  }
+}

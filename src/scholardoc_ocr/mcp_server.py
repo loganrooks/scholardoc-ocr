@@ -4,9 +4,43 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
+
+
+def _ensure_path() -> None:
+    """Ensure Homebrew and common tool paths are available.
+
+    Claude Desktop (and other MCP hosts) launch servers with a minimal PATH
+    that excludes /opt/homebrew/bin, /usr/local/bin, etc.  Without these,
+    ocrmypdf cannot find Ghostscript (gs) or Tesseract, producing cryptic
+    errors like "'.' is no file".
+    """
+    required_dirs = [
+        "/opt/homebrew/bin",
+        "/opt/homebrew/sbin",
+        "/usr/local/bin",
+    ]
+    current = os.environ.get("PATH", "")
+    missing = [d for d in required_dirs if d not in current.split(os.pathsep)]
+    if missing:
+        os.environ["PATH"] = os.pathsep.join(missing) + os.pathsep + current
+
+
+_ensure_path()
+
+_LOG_FILE = Path.home() / "scholardoc_mcp.log"
+
+
+def _log(msg: str) -> None:
+    """Append a line to the debug log file (bypasses logging framework)."""
+    with open(_LOG_FILE, "a") as f:
+        from datetime import datetime
+        f.write(f"{datetime.now().isoformat()} {msg}\n")
+        f.flush()
+
 
 logger = logging.getLogger(__name__)
 
@@ -44,13 +78,13 @@ async def ocr(
     try:
         from .pipeline import PipelineConfig, run_pipeline
 
-        logger.info("ocr tool called with input_path=%r", input_path)
+        _log(f"ocr called with input_path={input_path!r}")
 
         if not input_path or not input_path.strip():
             return {"error": f"input_path is empty or blank. Received: {input_path!r}"}
 
         resolved = Path(input_path).expanduser().resolve()
-        logger.info("Resolved path: %s (exists=%s)", resolved, resolved.exists())
+        _log(f"resolved={resolved} exists={resolved.exists()}")
 
         if not resolved.exists():
             return {"error": f"Path does not exist: {resolved}"}
@@ -113,6 +147,10 @@ async def ocr(
         # Run pipeline in thread to avoid blocking event loop
         result = await asyncio.to_thread(run_pipeline, config)
         result_dict = result.to_dict(include_text=False)
+        _log(f"pipeline result keys per file: {[(f.get('filename'), f.get('output_path')) for f in result_dict.get('files', [])]}")
+        for f in result_dict.get('files', []):
+            if not f.get('success'):
+                _log(f"FAILED FILE: {f.get('filename')} - engine={f.get('engine')} error={f.get('error')}")
 
         # Clean up temp page-range file
         if temp_page_file is not None and temp_page_file.exists():
@@ -123,7 +161,11 @@ async def ocr(
             import fitz
 
             for file_result in result_dict.get("files", []):
-                out_path = Path(file_result.get("output_path", ""))
+                out_path_str = file_result.get("output_path")
+                if out_path_str:
+                    out_path = Path(out_path_str)
+                else:
+                    continue
                 if out_path.exists():
                     doc = fitz.open(str(out_path))
                     text_parts = [doc[i].get_text() for i in range(len(doc))]
@@ -137,7 +179,10 @@ async def ocr(
             files = result_dict.get("files", [])
             if len(files) != 1:
                 return {"error": "output_name is only supported for single-file input"}
-            out_path = Path(files[0].get("output_path", ""))
+            out_path_str = files[0].get("output_path")
+            if not out_path_str:
+                return {"error": "output_name requires output_path in result"}
+            out_path = Path(out_path_str)
             if out_path.exists():
                 new_path = out_path.parent / output_name
                 out_path.rename(new_path)
@@ -153,13 +198,23 @@ async def ocr(
         return result_dict
 
     except Exception as e:
-        logger.exception("ocr tool failed for input_path=%r", input_path)
+        import traceback
+        _log(f"EXCEPTION: {e}\n{traceback.format_exc()}")
         return {"error": f"{e} (input_path was {input_path!r}, resolved to {resolved!r})"}
 
 
 def main():
     """Entry point for the MCP server."""
-    logging.basicConfig(level=logging.INFO, format="%(name)s %(levelname)s: %(message)s")
+    log_file = Path.home() / "scholardoc_mcp.log"
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format="%(asctime)s %(name)s %(levelname)s: %(message)s",
+        handlers=[
+            logging.FileHandler(log_file),
+            logging.StreamHandler(),
+        ],
+    )
+    _log("MCP server starting")
     mcp.run()
 
 

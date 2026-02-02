@@ -49,6 +49,15 @@ def _tesseract_worker(
     This is a top-level function accepting only picklable args.
     It must NOT import surya.
     """
+    # Ensure PATH includes Homebrew/system tool directories
+    # (ProcessPoolExecutor spawns fresh processes that don't inherit
+    # the parent's os.environ modifications from mcp_server._ensure_path)
+    required_dirs = ["/opt/homebrew/bin", "/opt/homebrew/sbin", "/usr/local/bin"]
+    current_path = os.environ.get("PATH", "")
+    missing = [d for d in required_dirs if d not in current_path.split(os.pathsep)]
+    if missing:
+        os.environ["PATH"] = os.pathsep.join(missing) + os.pathsep + current_path
+
     from .processor import PDFProcessor
     from .quality import QualityAnalyzer
     from .tesseract import TesseractConfig, run_ocr
