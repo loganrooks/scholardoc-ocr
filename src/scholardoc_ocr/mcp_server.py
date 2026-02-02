@@ -4,32 +4,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
-
-
-def _ensure_path() -> None:
-    """Ensure Homebrew and common tool paths are available.
-
-    Claude Desktop (and other MCP hosts) launch servers with a minimal PATH
-    that excludes /opt/homebrew/bin, /usr/local/bin, etc.  Without these,
-    ocrmypdf cannot find Ghostscript (gs) or Tesseract, producing cryptic
-    errors like "'.' is no file".
-    """
-    required_dirs = [
-        "/opt/homebrew/bin",
-        "/opt/homebrew/sbin",
-        "/usr/local/bin",
-    ]
-    current = os.environ.get("PATH", "")
-    missing = [d for d in required_dirs if d not in current.split(os.pathsep)]
-    if missing:
-        os.environ["PATH"] = os.pathsep.join(missing) + os.pathsep + current
-
-
-_ensure_path()
 
 _LOG_FILE = Path.home() / "scholardoc_mcp.log"
 
