@@ -12,7 +12,7 @@ See: .planning/PROJECT.md (updated 2026-02-02)
 Phase: v1.0 complete — all 7 phases shipped
 Plan: N/A
 Status: Milestone complete, ready for next milestone
-Last activity: 2026-02-02 — v1.0 milestone archived
+Last activity: 2026-02-02 — Completed quick/001 (remove brittle PATH hacks)
 
 Progress: [█████████████████] 100% (17/17 plans across 7 phases)
 
@@ -33,5 +33,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-02
-Stopped at: v1.0 milestone complete
+Stopped at: Completed quick/001-remove-brittle-path-hacks
 Resume file: None
