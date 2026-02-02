@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
+
+logger = logging.getLogger(__name__)
 
 mcp = FastMCP("scholardoc-ocr")
 
@@ -37,10 +40,18 @@ async def ocr(
             Only the specified pages will be processed.
         output_name: Rename the output PDF to this name. Only valid for single-file input.
     """
+    resolved = None
     try:
         from .pipeline import PipelineConfig, run_pipeline
 
+        logger.info("ocr tool called with input_path=%r", input_path)
+
+        if not input_path or not input_path.strip():
+            return {"error": f"input_path is empty or blank. Received: {input_path!r}"}
+
         resolved = Path(input_path).expanduser().resolve()
+        logger.info("Resolved path: %s (exists=%s)", resolved, resolved.exists())
+
         if not resolved.exists():
             return {"error": f"Path does not exist: {resolved}"}
 
@@ -142,11 +153,13 @@ async def ocr(
         return result_dict
 
     except Exception as e:
-        return {"error": str(e)}
+        logger.exception("ocr tool failed for input_path=%r", input_path)
+        return {"error": f"{e} (input_path was {input_path!r}, resolved to {resolved!r})"}
 
 
 def main():
     """Entry point for the MCP server."""
+    logging.basicConfig(level=logging.INFO, format="%(name)s %(levelname)s: %(message)s")
     mcp.run()
 
 
