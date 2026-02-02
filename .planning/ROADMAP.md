@@ -17,6 +17,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 3: OCR Backend Modules** - Extract Tesseract/Surya wrappers, fix model lifecycle
 - [x] **Phase 4: Engine Orchestration** - Per-file batching, fix Surya writeback, resource-aware parallelism
 - [x] **Phase 5: CLI Presentation Layer** - Thin CLI wrapper around library API, preserve interface
+- [ ] **Phase 6: MCP Server Integration** - Expose OCR pipeline as MCP tool for Claude Desktop
 
 ## Phase Details
 
@@ -127,10 +128,30 @@ Plans:
 - [x] 05-01-PLAN.md — Language config, PipelineConfig language fields, recursive file discovery fix
 - [x] 05-02-PLAN.md — RichCallback, new CLI flags, Rich summary table, CLI rewrite
 
+### Phase 6: MCP Server Integration
+**Goal**: Expose OCR pipeline as MCP tool for Claude Desktop, enabling conversational OCR processing without CLI.
+
+**Depends on**: Phase 5 (wraps library API)
+
+**Requirements**: MCP-01, MCP-02, MCP-03, MCP-04, MCP-05
+
+**Success Criteria** (what must be TRUE):
+  1. OCR pipeline callable as MCP tool from Claude Desktop
+  2. Returns structured metadata (no full text in response — keeps context window small)
+  3. Optional extract_text parameter writes .txt alongside output PDF; response includes path only
+  4. Optional page_range parameter to OCR a subset of pages (e.g. a single essay in a collection)
+  5. Optional output_name parameter to control output filename
+  6. Single module addition — no changes to existing library code
+
+**Plans**: 1 plan
+
+Plans:
+- [ ] 06-01-PLAN.md — MCP server module with ocr tool, pyproject.toml updates
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
+Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -139,3 +160,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | 3. OCR Backend Modules | 3/3 | Complete ✓ | 2026-01-29 |
 | 4. Engine Orchestration | 3/3 | Complete ✓ | 2026-01-29 |
 | 5. CLI Presentation Layer | 2/2 | Complete ✓ | 2026-01-30 |
+| 6. MCP Server Integration | 0/? | Not started | - |
