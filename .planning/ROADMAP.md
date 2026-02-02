@@ -34,11 +34,13 @@ See .planning/MILESTONES.md for v1.0 details. 7 phases, 17 plans, 30 requirement
   3. Work directory is automatically removed after successful processing; `--keep-intermediates` preserves it
   4. A corrupted or slow PDF times out instead of hanging the entire pipeline
   5. User can inspect per-worker log files after a parallel run to diagnose failures
-**Plans**: TBD
+**Plans:** 4 plans
 
 Plans:
-- [ ] 08-01: TBD
-- [ ] 08-02: TBD
+- [ ] 08-01-PLAN.md — Multiprocess logging infrastructure (QueueHandler/QueueListener, per-worker log files)
+- [ ] 08-02-PLAN.md — Environment validation and startup diagnostics
+- [ ] 08-03-PLAN.md — Full traceback capture in all error paths
+- [ ] 08-04-PLAN.md — Pipeline integration (logging, cleanup, timeout, CLI flags)
 
 ### Phase 9: Post-Processing
 **Goal**: OCR text output is RAG-ready -- paragraphs are joined, hyphens resolved, unicode unified, punctuation cleaned -- without destroying academic content like philosophical terms, author names, or Greek transliterations.
