@@ -67,32 +67,32 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| POST-01 | — | Pending |
-| POST-02 | — | Pending |
-| POST-03 | — | Pending |
-| POST-04 | — | Pending |
-| POST-05 | — | Pending |
-| POST-06 | — | Pending |
-| POST-07 | — | Pending |
-| ROBU-01 | — | Pending |
-| ROBU-02 | — | Pending |
-| ROBU-03 | — | Pending |
-| ROBU-04 | — | Pending |
-| ROBU-05 | — | Pending |
-| ROBU-06 | — | Pending |
-| ROBU-07 | — | Pending |
-| ROBU-08 | — | Pending |
-| OUTP-01 | — | Pending |
-| OUTP-02 | — | Pending |
-| OUTP-03 | — | Pending |
-| OUTP-04 | — | Pending |
-| OUTP-05 | — | Pending |
+| POST-01 | Phase 9 | Pending |
+| POST-02 | Phase 9 | Pending |
+| POST-03 | Phase 9 | Pending |
+| POST-04 | Phase 9 | Pending |
+| POST-05 | Phase 9 | Pending |
+| POST-06 | Phase 9 | Pending |
+| POST-07 | Phase 9 | Pending |
+| ROBU-01 | Phase 8 | Pending |
+| ROBU-02 | Phase 8 | Pending |
+| ROBU-03 | Phase 8 | Pending |
+| ROBU-04 | Phase 8 | Pending |
+| ROBU-05 | Phase 8 | Pending |
+| ROBU-06 | Phase 8 | Pending |
+| ROBU-07 | Phase 8 | Pending |
+| ROBU-08 | Phase 8 | Pending |
+| OUTP-01 | Phase 10 | Pending |
+| OUTP-02 | Phase 10 | Pending |
+| OUTP-03 | Phase 10 | Pending |
+| OUTP-04 | Phase 10 | Pending |
+| OUTP-05 | Phase 10 | Pending |
 
 **Coverage:**
 - v2.0 requirements: 20 total
-- Mapped to phases: 0
-- Unmapped: 20 (pending roadmap)
+- Mapped to phases: 20
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-02-02*
-*Last updated: 2026-02-02 after initial definition*
+*Last updated: 2026-02-02 after roadmap creation*

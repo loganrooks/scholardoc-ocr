@@ -5,14 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-02-02)
 
 **Core value:** Produce accurate OCR text from scanned academic PDFs with minimal manual intervention, using quality-gated fallback to avoid expensive neural OCR unless needed.
-**Current focus:** v2.0 — Post-processing + Robustness
+**Current focus:** v2.0 Phase 8 — Robustness
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 8 of 10 (Robustness)
 Plan: —
-Status: Defining requirements for v2.0
-Last activity: 2026-02-02 — Milestone v2.0 started
+Status: Ready to plan
+Last activity: 2026-02-02 — Roadmap created for v2.0
+
+Progress: [░░░░░░░░░░] 0%
+
+## Performance Metrics
+
+**Velocity:**
+- Total plans completed: 0 (v2.0)
+- Average duration: —
+- Total execution time: —
 
 ## Accumulated Context
 
@@ -37,5 +46,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-02
-Stopped at: Completed quick/001-remove-brittle-path-hacks
+Stopped at: Roadmap created for v2.0
 Resume file: None
