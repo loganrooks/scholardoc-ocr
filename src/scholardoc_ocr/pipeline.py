@@ -135,7 +135,9 @@ def _tesseract_worker(
                 quality_score=0.0,
                 page_count=page_count,
                 pages=[],
-                error=tess_result.error or "Tesseract OCR failed",
+                error=(
+                    tess_result.error or "Tesseract OCR failed (no details)"
+                ),
                 time_seconds=time.time() - start,
                 phase_timings=timings,
             )
@@ -187,6 +189,7 @@ def _tesseract_worker(
         )
 
     except Exception as e:
+        error_msg = f"{type(e).__name__}: {e}" if str(e) else f"{type(e).__name__}: {e!r}"
         return FileResult(
             filename=input_path.name,
             success=False,
@@ -194,7 +197,7 @@ def _tesseract_worker(
             quality_score=0.0,
             page_count=0,
             pages=[],
-            error=str(e),
+            error=error_msg,
             time_seconds=time.time() - start,
             phase_timings=timings,
         )

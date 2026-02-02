@@ -124,10 +124,18 @@ async def ocr(
         # Run pipeline in thread to avoid blocking event loop
         result = await asyncio.to_thread(run_pipeline, config)
         result_dict = result.to_dict(include_text=False)
-        _log(f"pipeline result keys per file: {[(f.get('filename'), f.get('output_path')) for f in result_dict.get('files', [])]}")
+        file_summary = [
+            (f.get('filename'), f.get('output_path'))
+            for f in result_dict.get('files', [])
+        ]
+        _log(f"pipeline result keys per file: {file_summary}")
         for f in result_dict.get('files', []):
             if not f.get('success'):
-                _log(f"FAILED FILE: {f.get('filename')} - engine={f.get('engine')} error={f.get('error')}")
+                _log(
+                    f"FAILED FILE: {f.get('filename')}"
+                    f" - engine={f.get('engine')}"
+                    f" error={f.get('error')!r}"
+                )
 
         # Clean up temp page-range file
         if temp_page_file is not None and temp_page_file.exists():
