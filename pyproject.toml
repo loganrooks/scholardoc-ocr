@@ -19,9 +19,11 @@ dev = [
     "pytest>=8.0.0",
     "ruff>=0.4.0",
 ]
+mcp = ["mcp[cli]"]
 
 [project.scripts]
 ocr = "scholardoc_ocr.cli:main"
+scholardoc-ocr-mcp = "scholardoc_ocr.mcp_server:main"
 
 [build-system]
 requires = ["hatchling"]
