@@ -1,189 +1,305 @@
 # Domain Pitfalls
 
 **Domain:** Hybrid OCR pipeline rearchitecture (Python CLI to library + CLI)
-**Researched:** 2026-01-28
+**Researched:** 2026-01-28 (v1), 2026-02-02 (v2 additions)
 **Confidence:** HIGH (grounded in actual codebase bugs and domain experience)
 
-## Critical Pitfalls
+---
 
-Mistakes that cause rewrites or major issues.
+## V1 Pitfalls (Pipeline Foundation)
+
+### Critical Pitfalls
 
 ### Pitfall 1: Surya Output Discarded After Processing
 
-**What goes wrong:** The pipeline runs Surya OCR on bad pages, extracts text, maps it back to files -- then never writes the improved text back to the output files or replaces pages in the output PDFs. This is the current bug: `run_surya_batch` returns text, `texts_by_file` is built, but the loop at line 564-567 of pipeline.py only logs "pages enhanced" without actually writing anything.
+**What goes wrong:** The pipeline runs Surya OCR on bad pages, extracts text, maps it back to files -- then never writes the improved text back to the output files or replaces pages in the output PDFs.
 
-**Why it happens:** The Phase 2 code was written incrementally. The mapping logic was built but the final write step was never implemented. The code _looks_ complete because it iterates over results and prints status.
+**Why it happens:** The Phase 2 code was written incrementally. The mapping logic was built but the final write step was never implemented.
 
-**Consequences:** Surya models load (30-60s), GPU processes all pages, then the results vanish. Users see "pages enhanced" in output but get Tesseract-quality text.
+**Consequences:** Surya models load (30-60s), GPU processes all pages, then the results vanish.
 
 **Prevention:**
-- Every processing step must have an assertion or test that its output persists: read back the file after writing and verify content changed
-- Write an integration test: process a known-bad PDF, verify the final output contains Surya text, not Tesseract text
-- Design the pipeline with explicit "write-back" as a named step, not implicit in the processing loop
+- Every processing step must have an assertion or test that its output persists
+- Write an integration test: process a known-bad PDF, verify the final output contains Surya text
+- Design the pipeline with explicit "write-back" as a named step
 
-**Detection:** Compare the text file content before and after Phase 2 -- they will be identical.
-
-**Phase:** Must be fixed in the core pipeline restructure phase, before any other work.
+**Detection:** Compare the text file content before and after Phase 2.
 
 ### Pitfall 2: PyMuPDF File Handle Leaks on Exceptions
 
-**What goes wrong:** Every method in `PDFProcessor` opens fitz documents with `self.fitz.open()` but only calls `doc.close()` in the happy path. If any exception occurs between open and close, the file handle leaks. `combine_pages_from_multiple_pdfs` opens a new document per page_spec in a loop -- one exception leaks all previously opened handles.
+**What goes wrong:** `PDFProcessor` opens fitz documents but only closes them in the happy path. Exceptions leak C-level file descriptors.
 
-**Why it happens:** Python developers assume garbage collection handles cleanup. PyMuPDF (fitz) holds C-level file descriptors that may not release promptly, especially on macOS where open file limits are lower.
+**Prevention:** Use context managers (`with fitz.open(path) as doc:`). The current code already uses `_open_pdf` context manager -- ensure all new code follows this pattern.
 
-**Consequences:** Processing 50+ files hits OS file descriptor limits. Silent corruption if a document is modified while another handle holds it open. On macOS, default ulimit is 256 -- easily hit when combining pages from many PDFs.
-
-**Prevention:**
-- Use context managers: `with fitz.open(path) as doc:` (PyMuPDF supports this)
-- If context managers aren't available for a particular fitz API, use try/finally
-- Write a test that processes enough files to exceed default file descriptor limits
-
-**Detection:** `lsof -p <pid> | grep -c pdf` during processing; or set `ulimit -n 64` in tests to catch leaks early.
-
-**Phase:** Fix during processor refactoring, before parallel processing work.
+**Detection:** `lsof -p <pid> | grep -c pdf` during processing.
 
 ### Pitfall 3: CPU Oversubscription in Nested Parallelism
 
-**What goes wrong:** `ProcessPoolExecutor(max_workers=N)` spawns N processes, each running `ocrmypdf` which itself uses `--jobs=M` threads internally (where M = max_workers // num_files). On a 4-core machine with 4 files, this creates 4 processes x 1 thread = 4 threads (fine). But with 1 file: 1 process x 4 ocrmypdf threads, plus ocrmypdf may spawn its own subprocesses for Ghostscript, unpaper, etc. The real problem: the `jobs_per_file` calculation at line 59 doesn't account for the fact that ocrmypdf already parallelizes across pages internally.
+**What goes wrong:** ProcessPoolExecutor spawns N processes, each running ocrmypdf which uses internal threading. Two levels of parallelism without coordinated resource budgets.
 
-**Why it happens:** Composing two levels of parallelism (Python process pool + ocrmypdf internal threading) without coordinating resource budgets. ocrmypdf's `--jobs` flag controls Tesseract parallelism, but ocrmypdf also runs other tools.
-
-**Consequences:** CPU thrashing, memory pressure (each Tesseract process uses 100-300MB), slower than sequential on memory-constrained systems. With large PDFs and high --jobs, OOM kills are possible.
-
-**Prevention:**
-- Treat total CPU budget as a shared resource: `total_cores = os.cpu_count()`; allocate either N workers x 1 job or 1 worker x N jobs, never both high
-- Cap `jobs_per_file` at 2 regardless of available cores when running multiple files
-- Add memory-aware scheduling: check available RAM before spawning workers
-- Make ocrmypdf jobs configurable separately from pipeline workers
-
-**Detection:** Monitor `os.cpu_count()` vs actual concurrent processes during a run. Watch for system memory pressure (psutil).
-
-**Phase:** Address during parallel processing redesign.
+**Prevention:** Treat total CPU budget as shared resource. Cap `jobs_per_file` when running multiple files.
 
 ### Pitfall 4: Fragile Index-Based Page Mapping Between Phases
 
-**What goes wrong:** Phase 2 maps Surya results back to original files using positional indexing into `all_bad_pages`. If any page fails to extract, is skipped, or if `combine_pages_from_multiple_pdfs` silently drops a page (e.g., page_num >= len(doc)), the indices shift and every subsequent page maps to the wrong file/position.
+**What goes wrong:** Phase 2 maps Surya results back using positional indexing. If any page is skipped, all subsequent pages map wrong.
 
-**Why it happens:** The mapping relies on the assumption that every page in `all_bad_pages` produces exactly one entry in `surya_texts`, in the same order. The batch processing in `run_surya_batch` can produce different numbers of texts (see line 312-317: fallback puts entire markdown as one entry instead of per-page texts).
+**Prevention:** Use explicit page identifiers (file + page number), not positional indices. Assert length matches before mapping.
 
-**Consequences:** Wrong text assigned to wrong pages in wrong files. This is a silent data corruption bug -- output looks plausible but is garbled across documents.
-
-**Prevention:**
-- Use explicit page identifiers (file hash + page number) instead of positional indices
-- Carry metadata through every processing step, not just at the boundaries
-- Assert `len(surya_texts) == len(all_bad_pages)` before mapping, fail loudly if mismatched
-- Write a test with 3+ files, each with different bad pages, and verify page-level text assignment
-
-**Detection:** Include source file checksums in output metadata. Spot-check page content against originals.
-
-**Phase:** Must be redesigned in the core pipeline restructure.
-
-## Moderate Pitfalls
-
-Mistakes that cause delays or technical debt.
+### Moderate Pitfalls
 
 ### Pitfall 5: ML Model Lifecycle Mismanagement
 
-**What goes wrong:** `create_model_dict()` is called in multiple places (`run_surya`, `run_surya_on_pages`, `run_surya_batch`). Each call may load multi-GB models into GPU/CPU memory. The current code loads models inside methods that may be called multiple times. After rearchitecting, it's easy to accidentally load models per-file instead of per-pipeline-run.
-
-**Prevention:**
-- Models should be loaded exactly once per pipeline run, managed by the pipeline, not the processor
-- Use a model manager or context manager pattern: `with SuryaModels() as models:` that handles load/unload
-- Never import Marker/Surya at module level -- always lazy-load behind a function boundary to keep CLI startup fast
-- Add a test that mocks `create_model_dict` and asserts it's called exactly once across a multi-file run
-
-**Phase:** Design during library API phase; implement during processor refactoring.
+**Prevention:** Models loaded exactly once per pipeline run. Use model manager pattern. Never import Surya at module level.
 
 ### Pitfall 6: CLI-to-Library Extraction Breaks Error Handling
 
-**What goes wrong:** When extracting a library API from a CLI tool, errors that were handled by printing messages and exiting (`sys.exit(1)`, `console.print("[red]...")`) get carried into library code. Library consumers get `SystemExit` exceptions or Rich markup strings instead of proper exceptions.
-
-**Prevention:**
-- Define a clear exception hierarchy: `OCRError`, `QualityError`, `ModelLoadError`
-- Library layer must never import Rich, call `console.print()`, or call `sys.exit()`
-- CLI layer wraps library calls and translates exceptions to user-facing messages
-- Return structured results (dataclasses/TypedDict) from library, not formatted strings
-- Write tests that use the library API without any TTY -- if it raises or prints to stdout, it's a bug
-
-**Phase:** Foundation phase -- define API boundaries before any refactoring.
+**Prevention:** Define exception hierarchy. Library layer must never import Rich or call sys.exit().
 
 ### Pitfall 7: Testing OCR Pipelines Without Deterministic Fixtures
 
-**What goes wrong:** Tests that depend on actual OCR output are flaky because: (1) Tesseract versions produce slightly different text, (2) Surya model updates change output, (3) PDF rendering varies across platforms. Teams either skip testing or write tests that break on every dependency update.
-
-**Prevention:**
-- Create small (1-3 page) synthetic test PDFs with known text (e.g., use reportlab to create PDFs with embedded text)
-- Test pipeline logic separately from OCR engines: mock the OCR step, test the orchestration
-- For quality analysis tests, use pre-captured OCR output strings, not live OCR
-- Integration tests with real OCR should be marked `@pytest.mark.slow` and run separately
-- Pin Tesseract version in CI
-
-**Phase:** Testing infrastructure should be set up early, before refactoring begins.
+**Prevention:** Synthetic test PDFs with known text. Mock OCR for logic tests. Real OCR tests marked slow.
 
 ### Pitfall 8: Temp File Cleanup Failures Filling Disk
 
-**What goes wrong:** The pipeline creates work directories, batch PDFs, combined PDFs. If processing fails mid-pipeline, these aren't cleaned up. `combined_pdf.unlink(missing_ok=True)` at line 572 only runs on the happy path. Over multiple runs, the `work/` directory accumulates gigabytes of intermediate PDFs.
-
-**Prevention:**
-- Use `tempfile.TemporaryDirectory` for all intermediate files -- auto-cleanup on context exit
-- Or implement explicit cleanup in a `finally` block at the pipeline level
-- Add a `--clean` flag or automatic cleanup of work dirs older than N hours
-- Test that temp files don't survive after both successful and failed runs
-
-**Phase:** Address during pipeline restructure.
+**Prevention:** Use `tempfile.TemporaryDirectory` for intermediates. Cleanup in `finally` blocks.
 
 ### Pitfall 9: Marker/Surya API Instability
 
-**What goes wrong:** The Marker library API changes between versions. The current code imports `from marker.converters.pdf import PdfConverter` and `from marker.models import create_model_dict` -- these import paths have changed across Marker versions. A pip upgrade silently breaks the pipeline.
+**Prevention:** Pin version strictly. Adapter module with version detection.
 
-**Prevention:**
-- Pin marker-pdf version strictly in pyproject.toml (not just `>=`)
-- Wrap all Marker imports in a single adapter module with version detection
-- Test imports in CI: a simple `import marker; marker.__version__` check
-- Document which Marker version the code targets
-
-**Phase:** Address during dependency management, early in the project.
-
-## Minor Pitfalls
+### Minor Pitfalls
 
 ### Pitfall 10: ProcessPoolExecutor Serialization Constraints
 
-**What goes wrong:** `_process_single` is a module-level function (required for pickling) that takes a tuple of `(Path, Path, dict)`. When refactoring to use classes or closures, it's easy to accidentally make this a method or lambda, which can't be pickled for multiprocessing.
+**Prevention:** Keep worker functions at module level. All arguments must be picklable.
+
+### Pitfall 11: Quality Threshold as Single Global Number
+
+**Prevention:** Per-page-type thresholds or minimum word count filters.
+
+---
+
+## V2 Pitfalls (Post-Processing, Logging, MCP Async, Robustness)
+
+Pitfalls specific to adding text post-processing, structured logging, async MCP job handling, environment validation, and temp/work directory management to the existing scholardoc-ocr pipeline.
+
+### Critical Pitfalls
+
+### Pitfall 12: Dehyphenation Destroys Intentional Hyphens
+
+**What goes wrong:** A naive dehyphenation pass (rejoin word-hyphen-newline) destroys compound words that happen to fall at line breaks. In academic texts this is especially dangerous: German compound words (e.g., "Selbst-bewusstsein"), French philosophical terms with hyphens (e.g., "peut-etre"), and hyphenated author names (e.g., "Merleau-Ponty") get mangled.
+
+**Why it happens:** Tesseract emits soft hyphens (U+00AD) for line-break hyphens, but real hyphens are U+002D. Developers treat all end-of-line hyphens the same. Additionally, OCR engines inconsistently use soft vs hard hyphens -- Tesseract uses soft hyphens, but Surya/Marker outputs plain hyphens for everything.
+
+**Consequences:** "Merleau-Ponty" becomes "MerleauPonty". "Selbst-bewusstsein" becomes "Selbstbewusstsein" (which happens to be valid German, so this is a silent semantic change). Scholarly citations become unparseable.
 
 **Prevention:**
-- Keep process pool worker functions as module-level functions
-- All arguments must be picklable -- no open file handles, no model objects, no database connections
-- Test multiprocessing with `spawn` start method (default on macOS) which is stricter than `fork`
+- Distinguish U+00AD (soft hyphen, always a line-break artifact) from U+002D (hard hyphen, may be intentional)
+- For hard hyphens at line breaks, check if the rejoined word exists in a dictionary before removing the hyphen
+- Maintain a whitelist of known hyphenated terms (author names, compound philosophical terms)
+- Make dehyphenation language-aware: German compounds rejoin differently than English
+- Never dehyphenate inside citation contexts (parenthetical references, footnote markers)
 
-**Phase:** Keep in mind during parallel processing redesign.
+**Detection:** Grep output for known hyphenated terms that should survive post-processing. Unit test with "Merleau-Ponty" at a line break.
 
-### Pitfall 11: Quality Threshold as a Single Global Number
+**Phase:** Text post-processing phase. Must be designed before implementation.
 
-**What goes wrong:** A single `quality_threshold=0.85` treats all pages equally. Title pages, bibliography pages, and image-heavy pages naturally score low but don't need Surya. This sends many pages to Surya unnecessarily, wasting processing time.
+### Pitfall 13: Unicode Normalization Inconsistency Across OCR Engines
+
+**What goes wrong:** Tesseract and Surya produce different Unicode normalization forms. Tesseract may output "e" + combining acute (NFD) while Surya outputs precomposed "e-acute" (NFC). When the pipeline merges text from both engines (good pages from Tesseract, bad pages from Surya), the same character has different byte representations within one document. This breaks search, comparison, and downstream NLP.
+
+**Why it happens:** Each OCR engine makes independent Unicode choices. The pipeline merges their outputs without normalization. Ligatures add another dimension: Tesseract may output "fi" as two characters while Surya outputs the "fi" ligature (U+FB01).
+
+**Consequences:** Text search fails ("cafe" won't match "cafe" with combining accent). Diff tools show phantom changes. Quality analysis regex patterns may not match. French terms like "etre" with circumflex get inconsistent treatment.
 
 **Prevention:**
-- Consider per-page-type thresholds or minimum word count filters (pages with < 20 words are likely non-text)
-- Allow threshold override per file via config
-- Log which pages triggered Surya and why, so users can tune
+- Apply `unicodedata.normalize('NFC', text)` as the first step of all post-processing, before any other transforms
+- Decompose ligatures (fi, fl, ff, ffi, ffl) to their component characters -- academic text search expects this
+- Add a normalization step at the boundary where Tesseract and Surya text merge (in `run_pipeline`, where page texts are joined)
+- Test with a document that has both Tesseract and Surya pages, verify consistent normalization
 
-**Phase:** Quality analysis improvements phase.
+**Detection:** `len(text.encode('utf-8'))` before and after NFC normalization -- if different, you have mixed forms.
+
+**Phase:** Must be the very first post-processing step. Implement before dehyphenation or any other text transform.
+
+### Pitfall 14: Logging from ProcessPoolExecutor Workers Silently Lost
+
+**What goes wrong:** The current `_tesseract_worker` function uses `logging.getLogger(__name__)` but worker processes inherit a copy of the parent's logging configuration at fork time. With `spawn` start method (default on macOS), workers get NO logging configuration at all -- all log messages are silently dropped. The existing code already has this bug: worker process logs in `_tesseract_worker` go nowhere.
+
+**Why it happens:** Python's `ProcessPoolExecutor` with `spawn` creates fresh interpreter processes. The `logging.basicConfig()` call in the main process doesn't carry over. Developers test on Linux with `fork` (which copies config) and deploy on macOS with `spawn` (which doesn't).
+
+**Consequences:** When Tesseract fails in a worker, the error is caught and returned as a `FileResult.error` string, but the detailed log context (stack traces, intermediate states) is lost. Debugging production issues becomes guesswork.
+
+**Prevention:**
+- Use `QueueHandler` in workers sending to a `multiprocessing.Manager().Queue()`, with `QueueListener` in the main process dispatching to real handlers
+- Configure logging inside each worker function, not relying on inherited state
+- CRITICAL: Do not use `multiprocessing.Queue` directly with pools -- use `Manager().Queue()` which returns proxy objects safe for pool workers
+- Avoid the infinite loop trap: ensure the QueueHandler's logger does not propagate to a parent that also has a QueueHandler
+- Test logging on macOS (spawn) specifically, not just Linux (fork)
+
+**Detection:** Run the pipeline on macOS, check if worker-level log messages appear. If only main-process messages show, logging is broken.
+
+**Phase:** Structured logging phase. Must be implemented before adding more complex pipeline stages that need debugging.
+
+### Pitfall 15: FastMCP Server Crash on Client Timeout During OCR
+
+**What goes wrong:** The current MCP server runs OCR via `asyncio.to_thread(run_pipeline, config)`. OCR can take 5-30 minutes for large documents. When the MCP client (Claude Desktop) times out waiting, FastMCP's server can crash entirely rather than gracefully cancelling. This is a known FastMCP issue with `streamable-http` transport.
+
+**Why it happens:** The MCP protocol has timeout semantics. When the client disconnects, the server-side `to_thread` call continues running (threads cannot be cancelled in Python). FastMCP does not gracefully handle the disconnect, leading to unhandled exceptions in the event loop.
+
+**Consequences:** Server process dies. Any other pending requests are lost. The OCR work already done is wasted. Temp files from the interrupted run are not cleaned up.
+
+**Prevention:**
+- Use FastMCP's `task=True` protocol-native background tasks (available since v2.14) instead of raw `asyncio.to_thread`. This requires making the tool function async and using `TaskConfig` for execution mode
+- IMPORTANT: `task=True` only works with async functions -- the current `ocr` tool is already async, but it delegates to sync `run_pipeline` via `to_thread`. The task wrapper must be at the outer async level
+- Set `request_timeout` on the FastMCP constructor (e.g., `request_timeout=600` for 10 minutes)
+- Send progress notifications during processing to keep the connection alive and prevent client-side timeouts
+- Implement graceful shutdown: catch cancellation, clean up temp files, return partial results if available
+
+**Detection:** Start OCR on a large document, kill the Claude Desktop connection mid-processing, check if the server process survives.
+
+**Phase:** MCP async phase. Requires FastMCP >= 2.14.
+
+### Moderate Pitfalls
+
+### Pitfall 16: Post-Processing Corrupts Footnote References
+
+**What goes wrong:** Academic PDFs have superscript footnote numbers that OCR engines extract as inline numbers. Post-processing that "cleans up" text by removing isolated numbers or reformatting whitespace destroys footnote references. A line like "Heidegger argues1 that..." becomes "Heidegger argues that..." or "Heidegger argues 1 that...".
+
+**Why it happens:** Post-processing rules written for "normal" prose don't account for academic text conventions. Footnote markers appear as isolated digits, which look like OCR artifacts.
+
+**Prevention:**
+- Never remove isolated numbers unless they match a specific artifact pattern
+- Preserve superscript markers by detecting the pattern: word immediately followed by 1-3 digits with no space
+- Make post-processing rules configurable and conservative by default
+- Test with academic texts that have heavy footnoting
+
+**Phase:** Text post-processing. Design rules with academic texts specifically in mind.
+
+### Pitfall 17: Line Break Detection Varies by OCR Engine
+
+**What goes wrong:** Tesseract uses `\n` for line breaks within paragraphs and `\n\n` for paragraph breaks. Surya/Marker outputs markdown with different conventions. When merging text from both engines, paragraph detection breaks -- some paragraphs get merged, others get split.
+
+**Why it happens:** The pipeline currently joins page texts with `\n\n` (line 161 of pipeline.py) without normalizing line break conventions per engine.
+
+**Prevention:**
+- Normalize line breaks as a post-processing step, per-engine, before merging
+- Define a canonical internal format (e.g., single `\n` for soft breaks, `\n\n` for paragraphs)
+- Apply paragraph detection heuristics: lines ending without period + next line starting lowercase = same paragraph
+
+**Phase:** Text post-processing, after Unicode normalization.
+
+### Pitfall 18: QueueHandler Propagation Infinite Loop
+
+**What goes wrong:** When setting up `QueueHandler` for multiprocess logging, if the root logger has both a QueueHandler (for sending to the listener) and normal handlers, and `propagate=True` on child loggers, log records loop: QueueHandler puts the record in the queue, QueueListener dispatches it back to the root logger, which puts it back in the queue.
+
+**Why it happens:** The Python logging cookbook warns about this but the pattern is easy to get wrong. The current code uses `logging.basicConfig()` in `mcp_server.py:main()` which configures the root logger -- adding a QueueHandler to root creates the loop.
+
+**Prevention:**
+- QueueListener must dispatch to handlers on a SEPARATE logger (not root), or handlers must be removed from root before adding QueueHandler
+- Set `respect_handler_level=True` on QueueListener
+- In worker processes: configure ONLY a QueueHandler on root, no other handlers
+- In main process: QueueListener dispatches to file/stream handlers, QueueHandler is NOT on the same logger tree
+
+**Detection:** Log output grows exponentially. CPU spins on logging. Easy to catch in testing if you watch log volume.
+
+**Phase:** Structured logging phase.
+
+### Pitfall 19: Environment Validation That Blocks Startup
+
+**What goes wrong:** Over-eager environment validation checks every possible dependency at startup (Tesseract version, Surya model availability, GPU presence, disk space). This makes the CLI take 10+ seconds to start, or fails entirely when optional components are missing. Users who only want Tesseract mode get errors about missing Surya models.
+
+**Why it happens:** Developers add validation for every issue they've debugged, creating a growing startup tax.
+
+**Prevention:**
+- Validate eagerly for REQUIRED components only (Python version, Tesseract binary existence)
+- Validate lazily for OPTIONAL components (Surya models: check only when `--force-surya` or quality threshold triggers Phase 2)
+- Cache validation results (don't re-check Tesseract version every run)
+- Separate "can I start?" validation from "can I do this specific operation?" validation
+- Never validate network/model downloads at startup -- defer to first use
+
+**Detection:** Time `ocr --help` -- if it takes more than 1 second, startup validation is too heavy.
+
+**Phase:** Environment validation phase. Design the validation tiers before implementing.
+
+### Pitfall 20: Work Directory Collision Between Concurrent Runs
+
+**What goes wrong:** The current code creates work directories at `output_dir/work/{stem}` (line 66 of pipeline.py). If two pipeline runs process the same file concurrently (e.g., MCP server handling two requests), they write to the same work directory. Intermediate files overwrite each other, producing corrupt output.
+
+**Why it happens:** The work directory path is deterministic based on input filename, with no per-run isolation.
+
+**Prevention:**
+- Include a unique run ID (UUID or timestamp) in work directory paths: `output_dir/work/{run_id}/{stem}`
+- Use `tempfile.mkdtemp()` for work directories instead of deterministic paths
+- Clean up work directories in a `finally` block, or use `tempfile.TemporaryDirectory` as a context manager
+- For the MCP server specifically: each `ocr()` call must have isolated temp space since concurrent requests are expected
+
+**Detection:** Launch two OCR requests for the same file simultaneously via MCP, check for corrupt output.
+
+**Phase:** Temp/work directory management. Must be done before MCP concurrent request support.
+
+### Minor Pitfalls
+
+### Pitfall 21: Post-Processing Destroys Greek Transliterations
+
+**What goes wrong:** The quality analyzer already whitelists Greek transliterations ("aletheia", "phronesis", etc.) but post-processing rules like "remove non-English words" or "fix common OCR substitutions" can undo this. For example, a spell-check pass might "correct" "ousia" to "ousla" or flag "eudaimonia" as garbled.
+
+**Prevention:**
+- Share the whitelist between quality analysis and post-processing
+- Post-processing should never modify words that pass quality analysis validation
+- Test with a passage containing dense Greek/German philosophical terminology
+
+**Phase:** Text post-processing. Reuse existing whitelist from `quality.py`.
+
+### Pitfall 22: MCP File Logging Bypass
+
+**What goes wrong:** The current MCP server has a `_log()` function (line 14-19) that bypasses Python's logging framework by writing directly to a file. This was a debugging workaround. If structured logging is added via QueueHandler, these direct-write logs won't go through the new system, creating two parallel logging paths that are hard to correlate.
+
+**Prevention:**
+- Remove the `_log()` bypass when implementing structured logging
+- Route all MCP server logging through the standard `logging` module
+- Ensure the MCP server's `main()` logging configuration is compatible with the new QueueHandler setup
+
+**Phase:** Structured logging phase. Clean up during migration.
+
+### Pitfall 23: Soft Hyphen vs Hard Hyphen Confusion in Text Search
+
+**What goes wrong:** Tesseract outputs soft hyphens (U+00AD) for line-break hyphens. These are invisible in most text editors but present in the byte stream. Users searching the output text for "phenom-enology" won't find it because the soft hyphen is a different character than the search hyphen.
+
+**Prevention:**
+- Strip all soft hyphens (U+00AD) and rejoin the surrounding word fragments as a post-processing step
+- This is safe because soft hyphens are ALWAYS line-break artifacts, never intentional content
+- Do this BEFORE dehyphenation logic (which handles hard hyphens)
+
+**Phase:** Text post-processing. First pass before dehyphenation.
 
 ## Phase-Specific Warnings
 
 | Phase Topic | Likely Pitfall | Mitigation |
 |-------------|---------------|------------|
-| Library API design | CLI concerns leak into library (Rich, sys.exit) | Define exception hierarchy first; library must not depend on Rich |
-| Pipeline restructure | Surya results still not written back | Integration test: verify output file content changes after Phase 2 |
-| Pipeline restructure | Page mapping corruption | Use explicit IDs, not positional indices |
-| Processor refactoring | File handle leaks | Context managers everywhere; low-ulimit stress test |
-| Parallel processing | CPU/memory oversubscription | Single resource budget; configurable limits |
-| ML model lifecycle | Models loaded multiple times | Model manager pattern; mock-based test for load count |
-| Testing setup | Flaky OCR-dependent tests | Synthetic fixtures + mocked OCR for logic tests |
-| Dependency management | Marker API breaks on upgrade | Pin version; adapter module; import tests |
+| Library API design | CLI concerns leak into library | Define exception hierarchy first |
+| Pipeline restructure | Surya results not written back | Integration test verifying output changes |
+| Pipeline restructure | Page mapping corruption | Explicit IDs, not positional indices |
+| Text post-processing | Dehyphenation destroys compound words (#12) | Soft/hard hyphen distinction + dictionary lookup |
+| Text post-processing | Unicode normalization inconsistency (#13) | NFC normalize at engine boundary |
+| Text post-processing | Footnote references lost (#16) | Conservative rules, academic-text-aware |
+| Text post-processing | Greek/German terms mangled (#21) | Share quality.py whitelist with post-processor |
+| Structured logging | Worker logs silently lost (#14) | QueueHandler + Manager().Queue() pattern |
+| Structured logging | Infinite loop via propagation (#18) | Separate listener logger from QueueHandler logger |
+| Structured logging | MCP _log() bypass (#22) | Remove bypass, route through logging module |
+| MCP async | Server crash on client timeout (#15) | FastMCP task=True + progress notifications |
+| MCP async | Concurrent run collisions (#20) | UUID-based work directories |
+| Environment validation | Startup blocked by optional checks (#19) | Eager for required, lazy for optional |
+| Temp directory management | Work dir collision (#20) | Per-run isolation with tempfile |
 
 ## Sources
 
-- Direct analysis of current codebase (`pipeline.py`, `processor.py`)
-- PyMuPDF documentation on file handle management (HIGH confidence)
-- Python multiprocessing documentation on pickling constraints (HIGH confidence)
-- ocrmypdf documentation on `--jobs` flag behavior (HIGH confidence)
+- Direct analysis of current codebase: `pipeline.py`, `processor.py`, `quality.py`, `mcp_server.py` (HIGH confidence)
+- [Tesseract soft hyphen behavior](https://github.com/tesseract-ocr/tesseract/issues/2161) (HIGH confidence)
+- [Python multiprocessing logging patterns](https://signoz.io/guides/how-should-i-log-while-using-multiprocessing-in-python/) (MEDIUM confidence)
+- [Python logging cookbook on QueueHandler](https://docs.python.org/3/library/multiprocessing.html) (HIGH confidence)
+- [FastMCP v2.14 background tasks](https://github.com/jlowin/fastmcp/releases/tag/v2.14.0) (HIGH confidence)
+- [FastMCP server crash on client timeout](https://github.com/jlowin/fastmcp/issues/823) (HIGH confidence)
+- [FastMCP sync tool concurrency issues](https://github.com/jlowin/fastmcp/issues/864) (MEDIUM confidence)
+- [MCP timeout handling guide](https://mcpcat.io/guides/fixing-mcp-error-32001-request-timeout/) (MEDIUM confidence)
+- [concurrent-log-handler deprecation](https://pypi.org/project/concurrent-log-handler/) (MEDIUM confidence)

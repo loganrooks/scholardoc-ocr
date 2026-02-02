@@ -1,266 +1,280 @@
-# Architecture Patterns
+# Architecture Patterns: v2.0 Integration
 
-**Domain:** Python OCR pipeline (library + CLI)
-**Researched:** 2026-01-28
-**Confidence:** HIGH (based on direct codebase analysis + established Python patterns)
+**Project:** scholardoc-ocr v2.0
+**Researched:** 2026-02-02
+**Confidence:** HIGH (based on direct codebase analysis)
 
-## Current Problems
-
-1. **`pipeline.py` conflates three concerns:** orchestration logic, worker/processing logic, and Rich UI rendering -- all in one 600-line file
-2. **No library API:** `run_pipeline()` requires `PipelineConfig` with CLI-specific fields (debug, max_samples) and returns results while printing Rich output as a side effect. Impossible to use programmatically.
-3. **Fragile cross-file Surya batching:** All bad pages from all files are combined into one PDF, processed, then mapped back by index. If any page fails to combine or Surya skips a page, the index mapping silently corrupts results.
-4. **ProcessPoolExecutor + Surya incompatibility:** Surya/Marker loads GPU models (PyTorch). These cannot be shared across processes. Current code works only because Surya runs in the main process, but the architecture makes it unclear why.
-5. **CPU oversubscription:** Each Tesseract worker gets `max_workers // num_files` jobs, but ProcessPoolExecutor already parallelizes across files. With `--workers 8` and 4 files, each ocrmypdf gets 2 threads, totaling 8 processes x 2 threads = potential 16 threads.
-
-## Recommended Architecture
+## Current Architecture (Post v1.0 Refactor)
 
 ```
-                        ┌─────────────┐
-                        │   CLI (cli)  │  Thin: argparse -> Config -> Engine -> Renderer
-                        └──────┬───────┘
-                               │ calls
-                        ┌──────▼───────┐
-                        │   Engine     │  Library API: stateless functions, no UI
-                        │  (engine.py) │  Returns typed results, raises on error
-                        └──────┬───────┘
-                               │ uses
-              ┌────────────────┼────────────────┐
-              │                │                │
-    ┌─────────▼──────┐ ┌──────▼───────┐ ┌──────▼───────┐
-    │   Tesseract    │ │    Surya     │ │   Quality    │
-    │  (tesseract.py)│ │  (surya.py)  │ │ (quality.py) │
-    └────────────────┘ └──────────────┘ └──────────────┘
-              │                │                │
-    ┌─────────▼────────────────▼────────────────▼──────┐
-    │                  PDF Utils (pdf.py)               │
-    │  PyMuPDF wrappers: extract text, pages, combine  │
-    └──────────────────────────────────────────────────┘
+cli.py (argparse + Rich) ──┐
+                            ├──> pipeline.py (run_pipeline) ──> BatchResult
+mcp_server.py (FastMCP) ───┘         │
+                                     ├── _tesseract_worker (ProcessPoolExecutor)
+                                     │       └── processor.py, quality.py, tesseract.py
+                                     └── surya phase (main process, sequential per-file)
+                                             └── surya.py
+
+types.py       -- FileResult, PageResult, BatchResult, OCREngine
+callbacks.py   -- PipelineCallback protocol, LoggingCallback, NullCallback
+cli.py         -- RichCallback
+exceptions.py  -- Custom exceptions
+quality.py     -- QualityAnalyzer (regex scoring)
+confidence.py  -- Signal-based confidence
+dictionary.py  -- Academic term whitelist
 ```
 
-### Component Boundaries
+Key constraint: `run_pipeline(config, callback)` is the single entry point for both CLI and MCP. All v2.0 features must integrate through or alongside this function, not bypass it.
 
-| Component | Responsibility | Communicates With | IO |
-|-----------|---------------|-------------------|----|
-| **cli.py** | Argument parsing, Rich rendering, progress display | Engine only | stdin/stdout |
-| **engine.py** | Orchestration: which files need what, parallel dispatch, result aggregation | Tesseract, Surya, Quality, PDF | Filesystem (reads/writes PDFs) |
-| **tesseract.py** | ocrmypdf wrapper, subprocess management | PDF utils | Subprocess calls |
-| **surya.py** | Marker/Surya model loading, inference, per-file batch processing | PDF utils | GPU/model loading |
-| **quality.py** | Text quality scoring, page flagging | None (pure logic) | None |
-| **pdf.py** | PyMuPDF operations: text extraction, page manipulation | None (PyMuPDF only) | Filesystem |
+## v2.0 New Components
 
-### Data Flow
+### 1. Post-Processing Module (`postprocess.py`) -- NEW FILE
 
-```
-Input PDFs
-  │
-  ▼
-engine.process_directory(dir, config) -> list[FileResult]
-  │
-  ├─ Phase 1: For each file (parallel via ProcessPoolExecutor)
-  │    ├─ pdf.extract_text_by_page(path) -> list[str]
-  │    ├─ quality.analyze_pages(texts) -> list[QualityResult]
-  │    ├─ If bad pages AND force/needed:
-  │    │    tesseract.ocr_file(path) -> Path
-  │    │    pdf.extract_text_by_page(ocr_path) -> list[str]
-  │    │    quality.analyze_pages(texts) -> list[QualityResult]
-  │    └─ Return FileResult(path, page_qualities, bad_pages, ocr_path)
-  │
-  ├─ Phase 2: Surya on bad pages (main process, sequential per file)
-  │    ├─ surya.load_models() -> ModelDict  (once)
-  │    ├─ For each file with bad pages:
-  │    │    pdf.extract_pages(path, bad_pages) -> temp_pdf
-  │    │    surya.ocr_pages(temp_pdf, models) -> list[str]
-  │    │    Merge surya text back into file result
-  │    └─ Return updated FileResults
-  │
-  └─ Return list[FileResult]
+**Integration point:** After OCR text extraction, before final output write. Text is currently written at two places in `_tesseract_worker` (lines 93 and 162) and updated in the Surya phase (line 391).
 
-CLI layer:
-  engine results -> Rich tables, progress bars, panels
-```
-
-**Key change: per-file Surya batching, not cross-file.** Each file's bad pages are extracted and processed independently. The model is loaded once and reused across files. This eliminates the fragile cross-file index mapping entirely.
-
-## Patterns to Follow
-
-### Pattern 1: Engine as Pure Library API
-
-**What:** `engine.py` exposes functions that accept typed configs and return typed results. No printing, no Rich, no side effects beyond filesystem writes.
-
-**Why:** Enables programmatic use (scripts, notebooks, other tools) without capturing stdout.
+**Design:**
 
 ```python
-# engine.py
 @dataclass
-class OCRConfig:
-    quality_threshold: float = 0.85
-    force_tesseract: bool = False
-    max_workers: int = 4
-    languages: list[str] = field(default_factory=lambda: ["eng", "fra", "ell", "lat"])
+class PostProcessConfig:
+    dehyphenate: bool = True
+    normalize_unicode: bool = True
+    fix_ligatures: bool = True
+    fix_line_breaks: bool = True
+    fix_punctuation: bool = True
+
+class TextPostProcessor:
+    def __init__(self, config: PostProcessConfig | None = None): ...
+    def process(self, text: str) -> str: ...
+    def process_page(self, text: str) -> str: ...
+    def process_pages(self, pages: list[str]) -> list[str]: ...
+```
+
+**Rationale:**
+- Callable independently (library-first): `TextPostProcessor().process(text)`
+- Stateless -- no dependency on pipeline types
+- Config dataclass matches existing pattern (PipelineConfig, TesseractConfig, SuryaConfig)
+- Takes and returns strings, not PageResult -- keeps it composable
+
+**Pipeline integration:**
+- Add `post_process: bool = True` and `post_process_config: PostProcessConfig | None` to `PipelineConfig`
+- Apply in `_tesseract_worker` after text extraction, before writing .txt
+- Apply in Surya phase after `surya_markdown` is produced
+- Process text in place -- no need to store raw + processed separately
+
+**Dependencies:** ZERO. Pure text transforms. Build first.
+
+### 2. Structured Multiprocess Logging (`logging_config.py`) -- NEW FILE
+
+**Problem:** Worker processes each use module-level loggers. Logs interleave without structure. No JSON output. MCP server uses a manual `_log()` file-write hack.
+
+**Pattern: QueueHandler + ProcessPoolExecutor initializer**
+
+```python
+def setup_logging(
+    level: int = logging.INFO,
+    json_output: bool = False,
+    log_file: Path | None = None,
+) -> tuple[Queue, QueueListener]:
+    """Configure logging. Returns queue + listener for worker processes."""
+    ...
+
+def worker_logging_init(queue: Queue) -> None:
+    """Initializer for ProcessPoolExecutor workers."""
+    root = logging.getLogger()
+    root.handlers.clear()
+    root.addHandler(QueueHandler(queue))
+    root.setLevel(logging.DEBUG)
+
+def shutdown_logging(listener: QueueListener) -> None:
+    """Stop the QueueListener."""
+    listener.stop()
+```
+
+**Integration points:**
+- `run_pipeline()`: Create queue, pass to `ProcessPoolExecutor(initializer=worker_logging_init, initargs=(queue,))`
+- `cli.py main()`: Call `setup_logging()` instead of `logging.basicConfig()`
+- `mcp_server.py main()`: Call `setup_logging(json_output=True)` instead of manual `_log()` hack
+
+**Key detail:** Use `ProcessPoolExecutor(initializer=...)` rather than passing queue through `config_dict`. Runs once per worker process, not per task. Keeps config_dict clean.
+
+**`multiprocessing.Queue` is picklable.** Standard `queue.Queue` is NOT. Use the multiprocessing version.
+
+### 3. MCP Async Job Handling -- MODIFY `mcp_server.py`
+
+**Problem:** Current `ocr()` runs via `asyncio.to_thread()`. Large batches may timeout the MCP client.
+
+**Design:**
+
+```python
+_jobs: dict[str, JobStatus] = {}  # In-memory, ephemeral
 
 @dataclass
-class PageResult:
-    page_number: int       # 0-indexed
-    quality_score: float
-    method: str            # "existing" | "tesseract" | "surya"
-    text: str
-
-@dataclass
-class FileResult:
-    path: Path
-    pages: list[PageResult]
-    success: bool
+class JobStatus:
+    job_id: str
+    status: str  # "pending" | "running" | "complete" | "failed"
+    created: float
+    result: dict | None = None
     error: str | None = None
-    time_seconds: float = 0.0
+    progress: dict | None = None
 
-def process_file(path: Path, output_dir: Path, config: OCRConfig) -> FileResult:
-    """Process a single PDF. No side effects beyond filesystem."""
+@mcp.tool()
+async def ocr_async(input_path: str, ...) -> dict:
+    """Start OCR job, return job ID immediately."""
+    job_id = uuid4().hex[:8]
+    _jobs[job_id] = JobStatus(...)
+    asyncio.create_task(_run_ocr_job(job_id, ...))
+    return {"job_id": job_id, "status": "pending"}
+
+@mcp.tool()
+async def ocr_status(job_id: str) -> dict:
+    """Check job status and results."""
     ...
 
-def process_directory(
-    input_dir: Path,
-    output_dir: Path,
-    config: OCRConfig,
-    callback: Callable[[str, int, int], None] | None = None,
-) -> list[FileResult]:
-    """Process all PDFs in directory. Optional progress callback."""
+@mcp.tool()
+async def ocr_jobs() -> dict:
+    """List all jobs."""
     ...
 ```
 
-**When:** This is the primary interface. CLI wraps it; tests call it directly.
+**Callback integration:** Create `AsyncJobCallback` implementing `PipelineCallback` that updates `_jobs[job_id].progress`. The protocol already exists -- this is a clean fit.
 
-### Pattern 2: Callback-Based Progress (Not Rich Coupling)
+**Thread safety:** `run_pipeline()` runs in a thread via `asyncio.to_thread`. Dict writes for status updates are atomic enough under CPython GIL. No lock needed for simple field assignments.
 
-**What:** Engine accepts an optional `callback(event: str, current: int, total: int)` instead of importing Rich.
+**Keep existing `ocr()` tool unchanged** for backward compatibility. Add `ocr_async`, `ocr_status`, `ocr_jobs` as new tools.
 
-**Why:** CLI passes a callback that updates Rich progress bars. Tests pass None. Other consumers pass their own.
-
-### Pattern 3: Surya Model Sharing via Main Process
-
-**What:** Surya always runs in the main process. Tesseract runs in worker processes (it's CPU-only subprocesses anyway).
-
-**Why:** PyTorch GPU models cannot be pickled or shared across ProcessPoolExecutor workers. Surya/Marker loads ~2GB of models. Loading per-process would be wasteful and may crash on GPU memory.
-
-**Architecture implication:** Phase 1 (Tesseract) is embarrassingly parallel. Phase 2 (Surya) is sequential across files but uses GPU parallelism internally. This is correct and should be made explicit in the code structure.
-
-### Pattern 4: Per-File Surya Batching
-
-**What:** Instead of combining all bad pages from all files into one mega-PDF, process each file's bad pages independently.
+### 4. Environment Validation (`environment.py`) -- NEW FILE
 
 ```python
-# In engine.py Phase 2
-models = surya.load_models()  # Once
-for file_result in results_needing_surya:
-    bad_page_texts = surya.ocr_pages(
-        file_result.path,
-        file_result.bad_pages,
-        models,
-        work_dir,
-    )
-    # Merge directly -- no cross-file index mapping needed
-    for page_num, text in zip(file_result.bad_pages, bad_page_texts):
-        file_result.pages[page_num].text = text
-        file_result.pages[page_num].method = "surya"
+@dataclass
+class EnvironmentCheck:
+    name: str
+    available: bool
+    version: str | None = None
+    error: str | None = None
+
+def validate_environment(require_surya: bool = False) -> list[EnvironmentCheck]:
+    """Check tesseract, ocrmypdf, ghostscript, optionally surya."""
+    ...
+
+def require_environment(require_surya: bool = False) -> None:
+    """Validate and raise EnvironmentError if critical tools missing."""
+    ...
 ```
 
-**Why:** Eliminates the fragile index mapping that breaks on partial failures. Each file is self-contained. If one file's Surya fails, others are unaffected.
+**Integration:** Call at entry points only.
+- `cli.py main()`: `require_environment()` before `run_pipeline()`
+- `mcp_server.py`: Lazy on first `ocr()` call
+- `run_pipeline()`: Do NOT call here -- keep pipeline free of startup concerns
+
+**Dependencies:** ZERO. Build anytime.
+
+### 5. Work Directory Cleanup -- MODIFY `pipeline.py`
+
+Three-line change at end of `run_pipeline()`:
+
+```python
+if not config.debug:
+    work_dir = config.output_dir / "work"
+    if work_dir.exists():
+        shutil.rmtree(work_dir)
+```
+
+Add `keep_work_dir: bool = False` to `PipelineConfig`. Trivial.
+
+### 6. JSON Metadata Output -- MODIFY `pipeline.py` + `_tesseract_worker`
+
+**Infrastructure already exists:** `BatchResult.to_dict()` and `to_json()` are in types.py.
+
+**What to add:**
+- In `_tesseract_worker`: Write `{stem}.json` alongside .txt and .pdf in final/
+- At end of `run_pipeline()`: Write `batch_metadata.json`
+- In `cli.py`: Add `--json` flag for stdout JSON instead of Rich table
+
+## Component Dependency Graph
+
+```
+environment.py          (independent)
+postprocess.py          (independent)
+    │
+    ▼
+pipeline.py changes     (integrates postprocess, cleanup, JSON output)
+    │
+    ▼
+logging_config.py       (needs pipeline.py worker init changes)
+    │
+    ▼
+mcp_server.py changes   (needs stable pipeline + logging)
+    │
+    ▼
+cli.py changes          (needs all above)
+```
+
+## Recommended Build Order
+
+| Order | Component | Rationale |
+|-------|-----------|-----------|
+| 1 | `environment.py` | Zero deps, immediate value, easy win |
+| 2 | `postprocess.py` | Zero deps, pure text transforms, excellent test surface |
+| 3 | Pipeline integration (postprocess + cleanup + JSON) | Single pass modifying pipeline.py |
+| 4 | `logging_config.py` + pipeline worker init | Touches ProcessPoolExecutor setup |
+| 5 | MCP async jobs | Needs stable pipeline + logging |
+| 6 | CLI updates (--json, env check) | Final integration layer |
+
+## Data Flow: v2.0
+
+```
+CLI / MCP Server
+    |
+    +-- validate_environment()          [NEW: fail fast]
+    +-- setup_logging()                 [NEW: structured logs]
+    |
+    +-- run_pipeline(config, callback)
+            |
+            +-- Phase 1: ProcessPoolExecutor(initializer=worker_logging_init)
+            |     +-- _tesseract_worker()
+            |           +-- OCR (existing)
+            |           +-- post_process(text)     [NEW]
+            |           +-- write .txt, .pdf
+            |           +-- write .json metadata   [NEW]
+            |
+            +-- Phase 2: Surya (existing)
+            |     +-- post_process(surya_text)     [NEW]
+            |
+            +-- Write batch_metadata.json          [NEW]
+            +-- Cleanup work dir                   [NEW]
+```
 
 ## Anti-Patterns to Avoid
 
-### Anti-Pattern 1: UI in Library Code
+### Do not add post-processing inside PageResult/FileResult
+Post-processing is a transform on text, not a property of results. Keep result types as data carriers. Process text before storing it.
 
-**What:** `run_pipeline()` currently imports Rich and renders tables/panels directly.
-**Why bad:** Cannot use the pipeline from scripts, tests, or other tools without Rich output polluting stdout.
-**Instead:** Engine returns data. CLI formats data. Callback for progress.
+### Do not make logging a required parameter of run_pipeline
+Keep `run_pipeline(config, callback)` signature. Logging setup happens in the caller (CLI, MCP server). Workers configure via initializer.
 
-### Anti-Pattern 2: Cross-File Page Index Mapping
+### Do not store MCP jobs in a database
+MCP server is single-process. In-memory dict is correct. Jobs are ephemeral. SQLite adds complexity for zero benefit.
 
-**What:** Current code combines pages from N files into one PDF, processes it, then maps results back by positional index.
-**Why bad:** If any page fails to combine, or Surya returns fewer results than expected, all subsequent mappings are wrong. Silent data corruption.
-**Instead:** Per-file Surya processing. Each file is independent.
+### Do not validate environment inside the pipeline
+Fail fast at entry points. Do not let users wait through file discovery and worker spawning to discover ghostscript is missing.
 
-### Anti-Pattern 3: Config Dict Serialization for Multiprocessing
+### Do not try to parallelize Surya across processes
+PyTorch GPU models cannot be shared across ProcessPoolExecutor workers (CUDA context is per-process). Surya runs in main process, uses GPU parallelism internally. This is correct and intentional.
 
-**What:** Current `_process_single` takes a `tuple[Path, Path, dict]` because ProcessPoolExecutor needs picklable args, so PipelineConfig is manually converted to a dict.
-**Why bad:** No type safety, easy to miss fields, duplicated field names.
-**Instead:** Make config a simple frozen dataclass that's naturally picklable. Or use `ProcessorConfig` directly (it's already a dataclass).
+## Existing Patterns to Preserve
 
-### Anti-Pattern 4: Worker Thread Count Guessing
-
-**What:** `jobs_per_file = max(1, max_workers // max(1, num_files))` tries to distribute CPU cores.
-**Why bad:** ProcessPoolExecutor already manages parallelism. Having each ocrmypdf subprocess also use multiple threads causes oversubscription.
-**Instead:** Set `jobs=1` per ocrmypdf call (one thread per subprocess). Let ProcessPoolExecutor handle the parallelism. This is simpler and avoids oversubscription. If processing fewer files than workers, increase workers to match.
-
-## Module Structure
-
-```
-src/scholardoc_ocr/
-├── __init__.py          # Public API: process_file, process_directory, OCRConfig, FileResult
-├── cli.py               # argparse + Rich rendering (thin)
-├── engine.py            # Orchestration: parallel Tesseract, sequential Surya, result aggregation
-├── tesseract.py         # ocrmypdf subprocess wrapper
-├── surya.py             # Marker/Surya model loading + inference
-├── quality.py           # Text quality analysis (unchanged)
-└── pdf.py               # PyMuPDF operations: text extraction, page manipulation
-```
-
-**What moves where from current code:**
-
-| Current Location | New Location | What |
-|------------------|-------------|------|
-| `pipeline.py` lines 50-249 (`_process_single`) | `engine.py` | Worker function (cleaned up) |
-| `pipeline.py` lines 293-600 (`run_pipeline`) | `engine.py` (logic) + `cli.py` (rendering) | Split orchestration from display |
-| `pipeline.py` lines 252-291 (`_print_debug_info`) | `cli.py` | Pure display code |
-| `pipeline.py` Rich imports, console, Live, Table | `cli.py` | All UI stays in CLI |
-| `processor.py` `run_tesseract()` | `tesseract.py` | Tesseract-specific code |
-| `processor.py` `run_surya*()` | `surya.py` | Surya-specific code |
-| `processor.py` PDF methods | `pdf.py` | PyMuPDF operations |
-| `processor.py` `ProcessorConfig` | Split between `engine.py` (OCRConfig) and individual modules | Config per concern |
-
-## Build Order (Dependencies Between Components)
-
-Build bottom-up. Each phase can be tested independently.
-
-```
-Phase 1: Foundation (no dependencies between these)
-  ├── pdf.py        (extract from processor.py PDF methods)
-  ├── quality.py    (already exists, minor refactor)
-  └── Data types    (OCRConfig, FileResult, PageResult in engine.py or types.py)
-
-Phase 2: OCR Backends (depend on pdf.py)
-  ├── tesseract.py  (extract from processor.py, depends on pdf.py)
-  └── surya.py      (extract from processor.py, depends on pdf.py)
-
-Phase 3: Engine (depends on all above)
-  └── engine.py     (orchestration, parallel dispatch, Surya model sharing)
-
-Phase 4: CLI (depends on engine.py)
-  └── cli.py        (Rich rendering wrapping engine API)
-
-Phase 5: Public API
-  └── __init__.py   (re-export engine.process_file, process_directory, configs, results)
-```
-
-**Key constraint:** Phases 1-2 can be built and tested with unit tests against real/mock PDFs. Phase 3 is integration. Phase 4 is pure presentation. Each phase produces a working, testable increment.
-
-## Surya Model Sharing: The Core Constraint
-
-**Why ProcessPoolExecutor cannot share GPU models:**
-
-- PyTorch models contain CUDA tensors that are bound to a specific process's GPU context
-- Python's `multiprocessing` uses `fork` or `spawn`; neither can share GPU state
-- Marker's `create_model_dict()` returns non-picklable objects (model weights, CUDA handles)
-
-**Correct approach (current code already does this, but implicitly):**
-
-1. Phase 1 (Tesseract): ProcessPoolExecutor with N workers. Each worker spawns ocrmypdf as a subprocess. No GPU needed.
-2. Phase 2 (Surya): Main process loads models once, iterates over files sequentially. Surya/PyTorch uses GPU parallelism internally (batch inference).
-
-**Making this explicit in the architecture** prevents future developers from trying to parallelize Surya across processes (which would either crash or OOM the GPU).
+| Pattern | Where | Why |
+|---------|-------|-----|
+| `PipelineCallback` protocol | callbacks.py | Clean separation of progress reporting from logic |
+| Config dataclasses | pipeline.py, tesseract.py, surya.py | Type-safe, picklable configuration |
+| `to_dict()` / `to_json()` on result types | types.py | Serialization already built in |
+| Library-first design | pipeline.py exports `run_pipeline()` | CLI and MCP both call same function |
+| Surya in main process | pipeline.py Phase 2 | GPU model constraint |
 
 ## Sources
 
-- Direct analysis of current codebase (`pipeline.py`, `processor.py`, `cli.py`, `quality.py`)
-- Python `concurrent.futures` documentation (ProcessPoolExecutor pickling requirements) -- HIGH confidence
-- PyTorch multiprocessing constraints (CUDA context not shareable across fork) -- HIGH confidence from established knowledge
-- Python packaging best practices (src layout, `__init__.py` public API) -- HIGH confidence
+- Direct codebase analysis of all modules (HIGH confidence)
+- Python `logging.handlers.QueueHandler` documentation (HIGH confidence)
+- Python `concurrent.futures.ProcessPoolExecutor` initializer parameter (HIGH confidence)
+- CPython GIL behavior for dict writes (HIGH confidence, well-established)
