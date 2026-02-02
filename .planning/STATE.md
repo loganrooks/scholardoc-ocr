@@ -6,21 +6,21 @@ See: .planning/PROJECT.md (updated 2026-01-28)
 
 **Core value:** Produce accurate OCR text from scanned academic PDFs with minimal manual intervention, using quality-gated fallback to avoid expensive neural OCR unless needed.
 
-**Current focus:** All phases complete. Phase 5 verified ✓. Milestone ready for audit.
+**Current focus:** Phase 6 MCP Server Integration in progress.
 
 ## Current Position
 
-Phase: 5 of 5 (CLI Presentation Layer)
-Plan: 2 of 2 complete
-Status: Phase verified ✓
-Last activity: 2026-01-30 — Phase 5 verified complete
+Phase: 6 of 6 (MCP Server Integration)
+Plan: 1 of 1 complete
+Status: Phase complete
+Last activity: 2026-02-02 — Completed 06-01-PLAN.md
 
-Progress: [███████████████] 100% (15/15 plans)
+Progress: [████████████████] 100% (16/16 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 15
+- Total plans completed: 16
 - Average duration: ~2.5 min
 - Total execution time: ~0.5 hours
 
@@ -33,9 +33,10 @@ Progress: [███████████████] 100% (15/15 plans)
 | 3 | 3/3 | ~8m | ~2.5m |
 | 4 | 3/3 | ~8m | ~2.5m |
 | 5 | 2/2 | ~4m | ~2m |
+| 6 | 1/1 | ~2.5m | ~2.5m |
 
 **Recent Trend:**
-- Last 5 plans: 04-01 (~3m), 04-02 (~2m), 04-03 (~3m), 05-01 (~2m), 05-02 (~1.5m)
+- Last 5 plans: 04-02 (~2m), 04-03 (~3m), 05-01 (~2m), 05-02 (~1.5m), 06-01 (~2.5m)
 - Trend: Stable
 
 *Updated after each plan completion*
@@ -65,6 +66,7 @@ Recent decisions affecting current work:
 - [05-01]: ValueError on unknown language codes (fail fast)
 - [05-01]: Default languages include German (deu/de) for academic philosophy texts
 - [05-02]: CLI rewritten with Rich progress bars, summary table, new flags
+- [06-01]: MCP server with lazy imports; page_range via temp file; extract_text writes .txt only
 
 ### Pending Todos
 
@@ -76,6 +78,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-01-30
-Stopped at: Completed 05-02-PLAN.md (final plan)
+Last session: 2026-02-02
+Stopped at: Completed 06-01-PLAN.md
 Resume file: None
