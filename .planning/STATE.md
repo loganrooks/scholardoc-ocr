@@ -26,6 +26,12 @@ See PROJECT.md Key Decisions table for full history.
 
 None.
 
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 001 | Remove brittle PATH hacks, document MCP env config | 2026-02-02 | d04dbdd | [001-remove-brittle-path-hacks](./quick/001-remove-brittle-path-hacks/) |
+
 ### Blockers/Concerns
 
 - Pre-existing test collection error: test_callbacks.py imports removed `ExtendedResult` from pipeline.py
