@@ -44,6 +44,28 @@ For each input PDF, produces:
 - `filename.pdf` - Searchable PDF with text layer
 - `filename.txt` - Extracted plain text
 
+## MCP Server (Claude Desktop)
+
+The package includes an MCP server that exposes the OCR pipeline as a tool for Claude Desktop.
+
+Add the following to your `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "scholardoc-ocr": {
+      "command": "/path/to/.venv/bin/python",
+      "args": ["-m", "scholardoc_ocr.mcp_server"],
+      "env": {
+        "PATH": "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
+      }
+    }
+  }
+}
+```
+
+The `PATH` in the `env` field must include directories where Tesseract and Ghostscript are installed. On Apple Silicon Macs this is typically `/opt/homebrew/bin`.
+
 ## Requirements
 
 - Python 3.11-3.13
