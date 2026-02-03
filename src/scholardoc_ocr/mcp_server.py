@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import logging.handlers
 import time
+import traceback
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -13,13 +15,32 @@ from mcp.server.fastmcp import Context, FastMCP
 
 _LOG_FILE = Path.home() / "scholardoc_mcp.log"
 
+# Configure rotating file logger for MCP debug logs
+_file_logger = logging.getLogger("scholardoc_mcp_file")
+_file_logger.setLevel(logging.DEBUG)
+_file_handler = logging.handlers.RotatingFileHandler(
+    _LOG_FILE,
+    maxBytes=10 * 1024 * 1024,  # 10MB
+    backupCount=3,
+)
+_file_handler.setFormatter(logging.Formatter("%(asctime)s %(message)s"))
+_file_logger.addHandler(_file_handler)
+
 
 def _log(msg: str) -> None:
-    """Append a line to the debug log file (bypasses logging framework)."""
-    with open(_LOG_FILE, "a") as f:
-        from datetime import datetime
-        f.write(f"{datetime.now().isoformat()} {msg}\n")
-        f.flush()
+    """Log a message to the rotating debug log file."""
+    _file_logger.info(msg)
+
+
+def _truncate_traceback(max_frames: int = 3) -> str:
+    """Return a truncated traceback with only the last N frames."""
+    lines = traceback.format_exc().split("\n")
+    # Each frame is roughly 2 lines (location + code), plus header and exception line
+    # Keep last ~(max_frames * 2 + 3) lines to get final frames + exception
+    keep_lines = max_frames * 2 + 3
+    if len(lines) <= keep_lines:
+        return "\n".join(lines)
+    return "...(truncated)\n" + "\n".join(lines[-keep_lines:])
 
 
 logger = logging.getLogger(__name__)
@@ -97,6 +118,7 @@ async def _run_job(job: JobState, config) -> None:
     except Exception as e:
         job.status = "failed"
         job.error = str(e)
+        _log(f"Job {job.job_id} failed: {e}\n{_truncate_traceback()}")
 
 
 @mcp.tool()
@@ -379,19 +401,25 @@ async def ocr(
         return result_dict
 
     except Exception as e:
-        import traceback
-        _log(f"EXCEPTION: {e}\n{traceback.format_exc()}")
+        _log(f"EXCEPTION: {e}\n{_truncate_traceback()}")
         return {"error": f"{e} (input_path was {input_path!r}, resolved to {resolved!r})"}
 
 
 def main():
     """Entry point for the MCP server."""
-    log_file = Path.home() / "scholardoc_mcp.log"
+    # Configure root logger with rotating file handler (10MB, 3 backups)
+    rotating_handler = logging.handlers.RotatingFileHandler(
+        _LOG_FILE,
+        maxBytes=10 * 1024 * 1024,  # 10MB
+        backupCount=3,
+    )
+    rotating_handler.setFormatter(
+        logging.Formatter("%(asctime)s %(name)s %(levelname)s: %(message)s")
+    )
     logging.basicConfig(
         level=logging.DEBUG,
-        format="%(asctime)s %(name)s %(levelname)s: %(message)s",
         handlers=[
-            logging.FileHandler(log_file),
+            rotating_handler,
             logging.StreamHandler(),
         ],
     )
