@@ -26,7 +26,7 @@ See .planning/milestones/v2.0-ROADMAP.md for v2.0 details. 3 phases, 8 plans, 20
 
 **Milestone Goal:** Optimize Surya OCR performance on Apple Silicon through MPS acceleration, model caching, and cross-file batching. Expected cumulative improvement: 5-15x for multi-file batches.
 
-- [ ] **Phase 11: Benchmarking Foundation & Metrics Fixes** - Establish baseline measurements, fix timing/metadata bugs
+- [x] **Phase 11: Benchmarking Foundation & Metrics Fixes** - Establish baseline measurements, fix timing/metadata bugs
 - [ ] **Phase 12: Device Configuration** - MPS device selection and validation
 - [ ] **Phase 13: Model Caching** - Persist loaded models across MCP requests
 - [ ] **Phase 14: Cross-File Batching** - Aggregate flagged pages across all files
@@ -49,11 +49,11 @@ See .planning/milestones/v2.0-ROADMAP.md for v2.0 details. 3 phases, 8 plans, 20
 **Plans**: 5 plans
 
 Plans:
-- [ ] 11-01-PLAN.md — Benchmark infrastructure (dependencies, timing module, fixtures)
-- [ ] 11-02-PLAN.md — Benchmark tests (model loading, inference, memory)
-- [ ] 11-03-PLAN.md — OCREngine.MIXED enum and compute_engine_from_pages
-- [ ] 11-04-PLAN.md — Pipeline fixes (Surya timing, engine field, quality re-eval)
-- [ ] 11-05-PLAN.md — CI workflow for regression detection
+- [x] 11-01-PLAN.md — Benchmark infrastructure (dependencies, timing module, fixtures)
+- [x] 11-02-PLAN.md — Benchmark tests (model loading, inference, memory)
+- [x] 11-03-PLAN.md — OCREngine.MIXED enum and compute_engine_from_pages
+- [x] 11-04-PLAN.md — Pipeline fixes (Surya timing, engine field, quality re-eval)
+- [x] 11-05-PLAN.md — CI workflow for regression detection
 
 ### Phase 12: Device Configuration
 **Goal**: Enable explicit MPS device selection with validation and fallback for Apple Silicon GPU acceleration.
@@ -105,7 +105,7 @@ Plans:
 |-------|-----------|----------------|--------|-----------|
 | 1-7 | v1.0 | 17/17 | Complete | 2026-02-02 |
 | 8-10 | v2.0 | 8/8 | Complete | 2026-02-02 |
-| 11. Benchmarking Foundation | v2.1 | 0/5 | Planned | - |
+| 11. Benchmarking Foundation | v2.1 | 5/5 | Complete | 2026-02-03 |
 | 12. Device Configuration | v2.1 | 0/? | Not started | - |
 | 13. Model Caching | v2.1 | 0/? | Not started | - |
 | 14. Cross-File Batching | v2.1 | 0/? | Not started | - |

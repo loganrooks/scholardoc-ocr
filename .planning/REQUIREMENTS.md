@@ -32,14 +32,14 @@ Requirements for v2.1 Performance milestone — Surya optimization for Apple Sil
 
 ### Benchmarking & Metrics
 
-- [ ] **BENCH-01**: Baseline performance measurement infrastructure with pytest-benchmark
-- [ ] **BENCH-02**: Correct timing methodology using torch.mps.synchronize()
-- [ ] **BENCH-03**: Regression detection integrated into CI pipeline
-- [ ] **BENCH-04**: Memory profiling with memray for leak detection
-- [ ] **BENCH-05**: Hardware-specific benchmark profiles for M1/M2/M3 variants
-- [ ] **BENCH-06**: Surya processing time captured in phase_timings (model load + inference)
-- [ ] **BENCH-07**: Top-level engine field reflects actual processing (mixed/tesseract/surya)
-- [ ] **BENCH-08**: Quality scores re-evaluated after Surya processing
+- [x] **BENCH-01**: Baseline performance measurement infrastructure with pytest-benchmark
+- [x] **BENCH-02**: Correct timing methodology using torch.mps.synchronize()
+- [x] **BENCH-03**: Regression detection integrated into CI pipeline
+- [x] **BENCH-04**: Memory profiling with memray for leak detection
+- [x] **BENCH-05**: Hardware-specific benchmark profiles for M1/M2/M3 variants
+- [x] **BENCH-06**: Surya processing time captured in phase_timings (model load + inference)
+- [x] **BENCH-07**: Top-level engine field reflects actual processing (mixed/tesseract/surya)
+- [x] **BENCH-08**: Quality scores re-evaluated after Surya processing
 
 ## v2.2 Requirements
 
@@ -103,14 +103,14 @@ Which phases cover which requirements. Updated during roadmap creation.
 | MODEL-03 | Phase 13 | Pending |
 | MODEL-04 | Phase 13 | Pending |
 | MODEL-05 | Phase 13 | Pending |
-| BENCH-01 | Phase 11 | Pending |
-| BENCH-02 | Phase 11 | Pending |
-| BENCH-03 | Phase 11 | Pending |
-| BENCH-04 | Phase 11 | Pending |
-| BENCH-05 | Phase 11 | Pending |
-| BENCH-06 | Phase 11 | Pending |
-| BENCH-07 | Phase 11 | Pending |
-| BENCH-08 | Phase 11 | Pending |
+| BENCH-01 | Phase 11 | Complete |
+| BENCH-02 | Phase 11 | Complete |
+| BENCH-03 | Phase 11 | Complete |
+| BENCH-04 | Phase 11 | Complete |
+| BENCH-05 | Phase 11 | Complete |
+| BENCH-06 | Phase 11 | Complete |
+| BENCH-07 | Phase 11 | Complete |
+| BENCH-08 | Phase 11 | Complete |
 
 **Coverage:**
 - v2.1 requirements: 22 total
