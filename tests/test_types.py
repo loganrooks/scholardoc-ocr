@@ -8,6 +8,7 @@ from scholardoc_ocr.types import (
     OCREngine,
     PageResult,
     PageStatus,
+    compute_engine_from_pages,
 )
 
 
@@ -93,3 +94,73 @@ def test_enum_serialization():
     assert isinstance(d["engine"], str)
     assert d["status"] == "good"
     assert d["engine"] == "tesseract"
+
+
+def test_ocr_engine_mixed():
+    """Test MIXED enum value for mixed Tesseract+Surya processing."""
+    assert OCREngine.MIXED == "mixed"
+    assert str(OCREngine.MIXED) == "mixed"
+
+
+def test_compute_engine_all_tesseract():
+    """All Tesseract pages -> TESSERACT engine."""
+    pages = [
+        PageResult(
+            page_number=0, status=PageStatus.GOOD, quality_score=0.9, engine=OCREngine.TESSERACT
+        ),
+        PageResult(
+            page_number=1, status=PageStatus.GOOD, quality_score=0.9, engine=OCREngine.TESSERACT
+        ),
+    ]
+    assert compute_engine_from_pages(pages) == OCREngine.TESSERACT
+
+
+def test_compute_engine_all_surya():
+    """All Surya pages -> SURYA engine."""
+    pages = [
+        PageResult(
+            page_number=0, status=PageStatus.GOOD, quality_score=0.95, engine=OCREngine.SURYA
+        ),
+        PageResult(
+            page_number=1, status=PageStatus.GOOD, quality_score=0.95, engine=OCREngine.SURYA
+        ),
+    ]
+    assert compute_engine_from_pages(pages) == OCREngine.SURYA
+
+
+def test_compute_engine_mixed():
+    """Tesseract + Surya pages -> MIXED engine."""
+    pages = [
+        PageResult(
+            page_number=0, status=PageStatus.GOOD, quality_score=0.9, engine=OCREngine.TESSERACT
+        ),
+        PageResult(
+            page_number=1, status=PageStatus.GOOD, quality_score=0.95, engine=OCREngine.SURYA
+        ),
+    ]
+    assert compute_engine_from_pages(pages) == OCREngine.MIXED
+
+
+def test_compute_engine_empty():
+    """Empty pages list -> NONE engine."""
+    assert compute_engine_from_pages([]) == OCREngine.NONE
+
+
+def test_compute_engine_all_none():
+    """All NONE engine pages -> NONE engine."""
+    pages = [
+        PageResult(
+            page_number=0, status=PageStatus.GOOD, quality_score=0.0, engine=OCREngine.NONE
+        ),
+    ]
+    assert compute_engine_from_pages(pages) == OCREngine.NONE
+
+
+def test_compute_engine_existing():
+    """All EXISTING pages -> EXISTING engine."""
+    pages = [
+        PageResult(
+            page_number=0, status=PageStatus.GOOD, quality_score=1.0, engine=OCREngine.EXISTING
+        ),
+    ]
+    assert compute_engine_from_pages(pages) == OCREngine.EXISTING
