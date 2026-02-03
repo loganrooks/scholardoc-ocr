@@ -51,11 +51,11 @@ Plans:
   2. Paragraphs are joined into continuous text while paragraph boundaries (double newlines, indentation changes) are preserved
   3. Words split across lines with hyphens are rejoined; German compounds ("Selbstbewusstsein") and French names ("Merleau-Ponty") keep their intentional hyphens
   4. Punctuation is normalized -- extra whitespace around punctuation collapsed, double spaces removed
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 09-01: TBD
-- [ ] 09-02: TBD
+- [ ] 09-01-PLAN.md — TDD: postprocess.py module (unicode, paragraphs, dehyphenation, punctuation)
+- [ ] 09-02-PLAN.md — Integrate postprocess into pipeline text output
 
 ### Phase 10: Output and MCP
 **Goal**: Pipeline results are available in structured formats for programmatic consumers -- JSON metadata alongside PDFs, text extraction via CLI flag, and async MCP handling for long-running jobs.
@@ -79,5 +79,5 @@ Plans:
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 8. Robustness | v2.0 | 4/4 | ✓ Complete | 2026-02-02 |
-| 9. Post-Processing | v2.0 | 0/TBD | Not started | - |
+| 9. Post-Processing | v2.0 | 0/2 | Planned | - |
 | 10. Output and MCP | v2.0 | 0/TBD | Not started | - |
