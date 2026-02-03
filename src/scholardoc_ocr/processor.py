@@ -70,7 +70,7 @@ class PDFProcessor:
                 text_parts = [page.get_text() for page in doc]
                 return "\n".join(text_parts)
         except Exception as e:
-            logger.warning(f"Text extraction failed for {pdf_path}: {e}")
+            logger.warning("Text extraction failed for %s: %s", pdf_path, e, exc_info=True)
             return ""
 
     def extract_text_by_page(self, pdf_path: Path) -> list[str]:
@@ -79,7 +79,7 @@ class PDFProcessor:
             with self._open_pdf(pdf_path) as doc:
                 return [page.get_text() for page in doc]
         except Exception as e:
-            logger.warning(f"Page extraction failed for {pdf_path}: {e}")
+            logger.warning("Page extraction failed for %s: %s", pdf_path, e, exc_info=True)
             return []
 
     def extract_pages(self, pdf_path: Path, page_numbers: list[int], output_path: Path) -> bool:
@@ -93,7 +93,7 @@ class PDFProcessor:
                     new_doc.save(output_path)
             return True
         except Exception as e:
-            logger.error(f"Failed to extract pages {page_numbers}: {e}")
+            logger.error("Failed to extract pages %s: %s", page_numbers, e, exc_info=True)
             return False
 
     def replace_pages(self, original_path: Path, replacement_path: Path,
@@ -126,7 +126,7 @@ class PDFProcessor:
                         result.save(output_path)
             return True
         except Exception as e:
-            logger.error(f"Failed to replace pages: {e}")
+            logger.error("Failed to replace pages: %s", e, exc_info=True)
             return False
 
     def get_page_count(self, pdf_path: Path) -> int:
@@ -135,5 +135,6 @@ class PDFProcessor:
             with self._open_pdf(pdf_path) as doc:
                 return len(doc)
         except Exception:
+            logger.warning("Failed to get page count for %s", pdf_path, exc_info=True)
             return 0
 

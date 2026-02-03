@@ -6,6 +6,7 @@ import logging
 import os
 import shutil
 import time
+import traceback
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -189,7 +190,7 @@ def _tesseract_worker(
         )
 
     except Exception as e:
-        error_msg = f"{type(e).__name__}: {e}" if str(e) else f"{type(e).__name__}: {e!r}"
+        logger.error("%s: Tesseract worker failed: %s", input_path.name, e, exc_info=True)
         return FileResult(
             filename=input_path.name,
             success=False,
@@ -197,7 +198,7 @@ def _tesseract_worker(
             quality_score=0.0,
             page_count=0,
             pages=[],
-            error=error_msg,
+            error=f"{type(e).__name__}: {e}\n{traceback.format_exc()}",
             time_seconds=time.time() - start,
             phase_timings=timings,
         )
@@ -293,7 +294,7 @@ def run_pipeline(
                     result.quality_score * 100, result.time_seconds,
                 )
             except Exception as e:
-                logger.error("%s: worker failed: %s", path.name, e)
+                logger.error("%s: worker failed: %s", path.name, e, exc_info=True)
                 file_results.append(FileResult(
                     filename=path.name,
                     success=False,
@@ -301,7 +302,7 @@ def run_pipeline(
                     quality_score=0.0,
                     page_count=0,
                     pages=[],
-                    error=str(e),
+                    error=f"{type(e).__name__}: {e}\n{traceback.format_exc()}",
                 ))
 
     cb.on_phase(PhaseEvent(
@@ -407,7 +408,7 @@ def run_pipeline(
             except Exception as e:
                 logger.warning(
                     "%s: Surya failed, keeping Tesseract output: %s",
-                    file_result.filename, e,
+                    file_result.filename, e, exc_info=True,
                 )
 
         cb.on_phase(PhaseEvent(
