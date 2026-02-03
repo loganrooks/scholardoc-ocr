@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import shutil
@@ -42,6 +43,7 @@ class PipelineConfig:
     langs_surya: str = "en,fr,el,la,de"
     keep_intermediates: bool = False
     timeout: int = 1800
+    extract_text: bool = False
 
 
 def _tesseract_worker(
@@ -461,6 +463,22 @@ def run_pipeline(
                 files_count=len(flagged_results),
                 pages_count=total_flagged_pages,
             ))
+
+        # --- Write JSON metadata files ---
+        final_dir = config.output_dir / "final"
+        for file_result in file_results:
+            if file_result.success and file_result.output_path:
+                stem = Path(file_result.output_path).stem
+                metadata = file_result.to_dict(include_text=False)
+                json_path = final_dir / f"{stem}.json"
+                json_path.write_text(
+                    json.dumps(metadata, indent=2), encoding="utf-8"
+                )
+
+        # --- Clean up .txt files unless extract_text enabled ---
+        if not config.extract_text:
+            for txt_file in final_dir.glob("*.txt"):
+                txt_file.unlink(missing_ok=True)
 
         # --- Cleanup work directory ---
         work_dir = config.output_dir / "work"

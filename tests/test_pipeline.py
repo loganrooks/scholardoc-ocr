@@ -186,7 +186,7 @@ class TestSuryaWriteback:
         self, mock_pool_cls, mock_load, mock_convert, tmp_path: Path
     ):
         _create_mock_pdf(tmp_path / "input" / "doc.pdf")
-        config = _make_config(tmp_path, files=["doc.pdf"])
+        config = _make_config(tmp_path, files=["doc.pdf"], extract_text=True)
 
         result_fr = _flagged_file_result("doc.pdf", page_count=3, flagged_indices=[1])
         future = MagicMock()
@@ -229,7 +229,7 @@ class TestSuryaPartialFailure:
     ):
         _create_mock_pdf(tmp_path / "input" / "fail.pdf")
         _create_mock_pdf(tmp_path / "input" / "ok.pdf")
-        config = _make_config(tmp_path, files=["fail.pdf", "ok.pdf"])
+        config = _make_config(tmp_path, files=["fail.pdf", "ok.pdf"], extract_text=True)
 
         fr_fail = _flagged_file_result("fail.pdf", page_count=2, flagged_indices=[0])
         fr_ok = _flagged_file_result("ok.pdf", page_count=2, flagged_indices=[0])
