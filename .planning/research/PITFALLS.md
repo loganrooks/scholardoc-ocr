@@ -1,7 +1,7 @@
 # Domain Pitfalls
 
 **Domain:** Hybrid OCR pipeline rearchitecture (Python CLI to library + CLI)
-**Researched:** 2026-01-28 (v1), 2026-02-02 (v2 additions)
+**Researched:** 2026-01-28 (v1), 2026-02-02 (v2 additions), 2026-02-03 (v3 MPS/performance)
 **Confidence:** HIGH (grounded in actual codebase bugs and domain experience)
 
 ---
@@ -273,27 +273,330 @@ Pitfalls specific to adding text post-processing, structured logging, async MCP 
 
 **Phase:** Text post-processing. First pass before dehyphenation.
 
-## Phase-Specific Warnings
+---
+
+## V3 Pitfalls (PyTorch/MPS Performance Optimization)
+
+Pitfalls specific to adding PyTorch/MPS performance optimizations, batching improvements, model caching, and benchmarking to the existing scholardoc-ocr pipeline on Apple Silicon.
+
+### Critical Pitfalls
+
+### Pitfall 24: ProcessPoolExecutor with Fork Corrupts MPS/CUDA State
+
+**What goes wrong:** The current pipeline uses `ProcessPoolExecutor` for Tesseract parallelization. If PyTorch/MPS is initialized in the main process before forking (e.g., by importing Surya at module level or checking `torch.backends.mps.is_available()`), child processes inherit corrupted GPU state. This causes silent failures, tensor zeroing, or deadlocks in worker processes.
+
+**Why it happens:** On macOS, Python 3.8+ defaults to `spawn` (safe), but explicit `fork` usage or Linux deployment triggers the "poison fork" problem. MPS and CUDA runtimes are not fork-safe -- they maintain internal state that becomes invalid after fork. The current code correctly avoids importing Surya in worker functions, but any accidental PyTorch initialization in main before spawning workers will break.
+
+**Consequences:**
+- Tensors silently set to zero in worker processes
+- Deadlocks during GPU operations
+- "MPS backend out of memory" errors that don't reflect actual memory usage
+- Intermittent failures that only occur in production, not testing
+
+**Prevention:**
+- NEVER initialize PyTorch/MPS before `ProcessPoolExecutor` workers are spawned
+- Use explicit `spawn` context: `ProcessPoolExecutor(max_workers=N, mp_context=multiprocessing.get_context('spawn'))`
+- Move ALL model loading to after the Tesseract phase completes (current architecture already does this correctly in `run_pipeline`)
+- Add defensive check: `assert not torch.backends.mps.is_initialized()` before creating the pool
+- If MPS detection is needed early, use `torch.backends.mps.is_built()` (safe) not `is_available()` (may initialize)
+- Consider moving Surya to a subprocess rather than in-process to fully isolate GPU state
+
+**Detection:** Run the pipeline with `PYTORCH_DEBUG=1` to get early warnings about fork issues. Check for "RuntimeError: Cannot re-initialize CUDA in forked subprocess" or similar MPS errors.
+
+**Phase:** This is a constraint on the EXISTING architecture. Must be verified before any MPS optimization work begins.
+
+### Pitfall 25: Benchmarking Without GPU Synchronization Shows Wrong Times
+
+**What goes wrong:** Developers time MPS operations with simple `time.time()` wrappers and get misleadingly fast results. GPU operations are asynchronous -- the Python call returns immediately while the GPU is still computing. Without `torch.mps.synchronize()`, benchmarks show CPU dispatch time, not actual computation time.
+
+**Why it happens:** CUDA developers learn to call `torch.cuda.synchronize()`, but MPS is newer and the pattern is less known. Quick benchmarks during development appear to show the code is already fast, masking real performance issues.
+
+**Consequences:**
+- "Optimizations" that show 10x speedup in benchmarks but no change in production
+- Inability to identify actual bottlenecks
+- False confidence that MPS is working when it's actually falling back to CPU
+- Regression detection completely broken
+
+**Prevention:**
+- Always call `torch.mps.synchronize()` before reading timing results for MPS operations
+- Use PyTorch's built-in `torch.utils.benchmark.Timer` which handles synchronization automatically
+- For more precise timing, use MPS events:
+  ```python
+  start_event = torch.mps.event.Event(enable_timing=True)
+  end_event = torch.mps.event.Event(enable_timing=True)
+  start_event.record()
+  # ... operation ...
+  end_event.record()
+  torch.mps.synchronize()
+  elapsed_ms = start_event.elapsed_time(end_event)
+  ```
+- Include warmup iterations (5-10) before timed runs -- first runs include JIT compilation and cache population
+- Run multiple iterations (20+) and report median, not mean
+
+**Detection:** If a benchmark shows an operation taking <1ms that you know involves loading images and running neural networks, synchronization is missing. Compare wall-clock time of full pipeline run vs sum of benchmarked components.
+
+**Phase:** Must establish correct benchmarking methodology BEFORE any optimization work. All performance claims need verified methodology.
+
+### Pitfall 26: MPS TableRecEncoderDecoderModel Falls Back to CPU Silently
+
+**What goes wrong:** Marker/Surya's table recognition model (`TableRecEncoderDecoderModel`) is not compatible with MPS and silently falls back to CPU. The warning message appears once in logs but is easy to miss. Developers assume MPS is accelerating all models when only some are GPU-accelerated.
+
+**Why it happens:** Marker sets `PYTORCH_ENABLE_MPS_FALLBACK=1` to handle unsupported operations. This is necessary for the library to work at all on MPS, but it silently degrades performance for incompatible models. The fallback is per-operation, not per-model, so a single model might be partially on MPS and partially on CPU.
+
+**Consequences:**
+- Table recognition is 10-30x slower than expected on Apple Silicon
+- Benchmarks that focus on text OCR miss the table bottleneck
+- Users with table-heavy documents see dramatically worse performance than benchmarks suggest
+- Memory pressure from CPU tensors can cause OOM even with available GPU memory
+
+**Prevention:**
+- Audit which Surya models support MPS by checking for the warning at runtime
+- For documents without tables, disable table processing: configure Marker with `disable_table_detection=True`
+- Log which device each model is actually running on (not just which device was requested)
+- Consider using a different table recognition approach for Apple Silicon
+- Profile with `torch.profiler` to see actual device utilization per operation
+
+**Detection:** Run with `PYTORCH_ENABLE_MPS_FALLBACK=0` (crash on unsupported ops) to identify which models fall back. Search logs for "Defaulting to cpu instead".
+
+**Phase:** Device detection and model configuration phase. Must understand which models actually use MPS before optimizing.
+
+### Pitfall 27: MPS Memory Leaks in Long-Running Processes
+
+**What goes wrong:** The MPS backend has known memory leaks, particularly with `clip_grad_norm_`, SDPA (Scaled Dot-Product Attention) in float32, and certain tensor conversion patterns. In a long-running MCP server processing many documents, memory grows unboundedly until the system becomes unresponsive or the process is killed.
+
+**Why it happens:** PyTorch MPS is newer and less battle-tested than CUDA. Memory management bugs exist at the Metal/PyTorch interface layer. The leaks are often small per-operation but compound over thousands of operations in a batch processing scenario.
+
+**Consequences:**
+- MCP server memory usage grows from 4GB to 20GB+ over a day of processing
+- System swap thrashing makes the entire machine unresponsive
+- Process RSS grows even though `torch.mps.current_allocated_memory()` shows stable usage
+- No explicit error -- system just gets slower and slower
+
+**Prevention:**
+- Call `torch.mps.empty_cache()` between documents (not between pages -- too much overhead)
+- Call `gc.collect()` after `empty_cache()` to release Python-side references
+- Monitor both `torch.mps.current_allocated_memory()` AND process RSS (via `psutil.Process().memory_info().rss`)
+- Set `PYTORCH_MPS_HIGH_WATERMARK_RATIO=0.7` to trigger earlier cache cleanup (default allows using all GPU memory)
+- Implement a watchdog that restarts the MCP server if memory exceeds a threshold
+- Consider processing in subprocess batches to get clean memory state periodically
+
+**Detection:** Run a stress test processing 50+ documents sequentially, monitoring memory after each. If RSS grows linearly, there's a leak.
+
+**Phase:** Model lifecycle management phase. Memory cleanup should be part of the batch processing loop.
+
+### Pitfall 28: Batch Size Tuning Ignores MPS Memory Constraints
+
+**What goes wrong:** Developers copy CUDA batch size recommendations (e.g., `RECOGNITION_BATCH_SIZE=864` from Surya benchmarks) without accounting for MPS memory characteristics. MPS unified memory behaves differently than discrete GPU VRAM -- system becomes unresponsive before OOM errors appear because macOS tries to swap GPU memory.
+
+**Why it happens:** Surya's default batch sizes and documentation target H100 GPUs with 80GB VRAM. Apple Silicon's unified memory (8GB-128GB shared between CPU and GPU) requires different tuning. A batch size that "works" may still cause severe system slowdown.
+
+**Consequences:**
+- System beach-balls during OCR with no error message
+- Other applications become unresponsive
+- OCR completes but takes 10x longer due to memory pressure
+- `PYTORCH_MPS_HIGH_WATERMARK_RATIO` warnings in logs (if set)
+
+**Prevention:**
+- Start with conservative batch sizes for MPS:
+  - 8GB unified memory: `DETECTOR_BATCH_SIZE=32`, `RECOGNITION_BATCH_SIZE=16`
+  - 16GB unified memory: `DETECTOR_BATCH_SIZE=64`, `RECOGNITION_BATCH_SIZE=32`
+  - 32GB+ unified memory: `DETECTOR_BATCH_SIZE=128`, `RECOGNITION_BATCH_SIZE=64`
+- Implement adaptive batch sizing: start low, increase if memory headroom exists
+- Monitor `torch.mps.recommended_max_memory()` (if available) or estimate as 75% of total unified memory
+- Set `PYTORCH_MPS_HIGH_WATERMARK_RATIO=0.5` during development to catch memory issues early
+- Test on the smallest supported hardware configuration (M1 8GB) not just development machines
+
+**Detection:** Watch Activity Monitor's "Memory Pressure" graph during OCR. If it goes yellow/red, batch sizes are too large.
+
+**Phase:** Batch size configuration phase. Needs hardware-specific profiles.
+
+### Moderate Pitfalls
+
+### Pitfall 29: Model Loading Time Dwarfs Processing Time for Small Documents
+
+**What goes wrong:** Surya model loading takes 30-60 seconds. For a single-page document, this dominates total time (60s load + 5s process = 65s total). Developers optimize the 5s processing time while ignoring the 60s elephant.
+
+**Why it happens:** Model loading happens once at the start of Phase 2, which is correct for batch processing. But when processing single documents via MCP, each request pays the full loading cost. The current architecture loads models fresh for each pipeline run.
+
+**Consequences:**
+- Single-document MCP requests take 60+ seconds even for trivial PDFs
+- Users perceive the tool as "slow" despite good per-page throughput
+- Batching multiple files into one pipeline run is 10x more efficient, but MCP requests arrive one at a time
+
+**Prevention:**
+- Implement model caching in the MCP server: load models once on first request, keep warm for subsequent requests
+- Add a model warmup on server startup (optional, configurable)
+- Consider model quantization to reduce load time (int8 models load faster)
+- For CLI usage, batch multiple files in one command rather than invoking once per file
+- Set HuggingFace cache directory explicitly to avoid re-downloads: `HF_HUB_CACHE=~/.cache/huggingface/hub`
+- Pre-download models during installation, not first run
+
+**Detection:** Profile Phase 2 with `--debug` timing breakdowns. If `model_load_time > total_processing_time`, this pitfall applies.
+
+**Phase:** Model lifecycle management phase. MCP server needs warm model pool.
+
+### Pitfall 30: MPS Device Bug Causes Incorrect Text Detection
+
+**What goes wrong:** Surya's text detection has a known bug when running on MPS (Apple-side bug) that can cause incorrect bounding box detection. The text recognition works, but detection may miss lines or produce malformed boxes.
+
+**Why it happens:** Apple's Metal Performance Shaders have bugs that PyTorch inherits. The Surya maintainer explicitly warns about this in documentation. The bug is at the Metal framework level, not fixable by PyTorch or Surya.
+
+**Consequences:**
+- Entire text regions missed in OCR output
+- Garbled results when recognition runs on incorrect bounding boxes
+- Inconsistent results between runs (non-deterministic behavior)
+- Quality scores may be misleadingly high because missing text isn't counted
+
+**Prevention:**
+- For critical accuracy, force CPU for detection: set `DETECTOR_DEVICE=cpu` (if Surya supports per-model device)
+- Run detection on CPU, recognition on MPS (detection is less compute-intensive anyway)
+- Compare MPS and CPU results on a test corpus before deploying
+- If MPS detection is used, validate output quality systematically, not just spot-checking
+- Keep this pitfall in mind when debugging "random" OCR failures
+
+**Detection:** Process the same document multiple times with MPS detection. If results vary significantly between runs, the bug is affecting you.
+
+**Phase:** Device selection phase. May need per-model device configuration.
+
+### Pitfall 31: torch.compile() Unusable on MPS
+
+**What goes wrong:** Developers attempt to use `torch.compile()` (PyTorch 2.0+) for optimization, but it has limited support on MPS. The compilation either fails or falls back to eager mode with no speedup, while adding significant compilation overhead.
+
+**Why it happens:** `torch.compile()` backends (Triton, inductor) are designed for CUDA and CPU. MPS support is incomplete. The PyTorch team prioritizes CUDA/CPU, and MPS gets second-class support.
+
+**Consequences:**
+- 30+ seconds added to first inference for compilation that doesn't help
+- Cryptic error messages or silent fallback to eager mode
+- Code that works on CUDA fails on MPS
+- False optimization hope -- developers spend time on torch.compile instead of effective optimizations
+
+**Prevention:**
+- Do NOT use `torch.compile()` on MPS as of PyTorch 2.10 -- check release notes for future support
+- Use eager mode optimizations: proper batch sizing, memory management, avoiding CPU-GPU transfers
+- If absolute performance is needed, consider MLX (Apple's native framework) which outperforms PyTorch MPS by 2-3x for some workloads
+- Focus optimization effort on reducing batch count (fewer inference calls) rather than per-inference speed
+
+**Detection:** If using `torch.compile()`, check logs for "falling back to eager" or measure actual speedup (likely negative).
+
+**Phase:** Optimization phase. Skip torch.compile for MPS.
+
+### Pitfall 32: Float64 Operations Crash on MPS
+
+**What goes wrong:** MPS does not support float64 (double precision) tensors. Operations that work on CPU or CUDA crash with "Cannot convert a MPS Tensor to float64 dtype" when run on MPS.
+
+**Why it happens:** Metal (Apple's GPU API) doesn't support double precision. PyTorch MPS inherits this limitation. Libraries that default to float64 for numerical stability (common in scientific computing) fail on MPS.
+
+**Consequences:**
+- Runtime crashes deep in model inference
+- Works on CPU, crashes on MPS -- confusing debugging
+- Third-party library code may use float64 internally without documentation
+- Marker/Surya may have float64 usage in edge cases
+
+**Prevention:**
+- Ensure all model inputs are float32: `tensor.to(dtype=torch.float32)`
+- Set default dtype before loading models: `torch.set_default_dtype(torch.float32)`
+- If a library requires float64, force CPU device for that operation
+- Test on MPS early and often -- don't assume CPU-tested code works on MPS
+- Catch `RuntimeError` with "float64" in message and provide helpful error
+
+**Detection:** Set `PYTORCH_ENABLE_MPS_FALLBACK=0` during testing to crash immediately on unsupported operations.
+
+**Phase:** Device compatibility phase. Test all code paths on MPS.
+
+### Pitfall 33: Non-Contiguous Tensor Bug on macOS < 15
+
+**What goes wrong:** PyTorch MPS had a kernel bug where operations like `addcmul_` and `addcdiv_` silently produce wrong results when writing to non-contiguous output tensors. Model weights can freeze during training or produce incorrect inference results.
+
+**Why it happens:** macOS 15 added native support for non-contiguous tensors in Metal. Earlier versions required PyTorch to work around limitations, and some workarounds had bugs. PyTorch 2.4+ has fixes, but only on macOS 15+.
+
+**Consequences:**
+- Silent incorrect results (no error, just wrong output)
+- Works on some inputs, fails on others depending on tensor memory layout
+- Extremely difficult to debug -- appears as "random" quality degradation
+- Random tensor operations (`normal_`, `uniform_`) still affected even on macOS 15
+
+**Prevention:**
+- Require macOS 15+ for MPS usage (document as system requirement)
+- On older macOS, fall back to CPU or warn users about potential issues
+- After each model operation, verify output with `.contiguous()` and compare
+- Use PyTorch 2.4+ minimum
+- Call `.contiguous()` on tensors before in-place operations as defensive measure
+
+**Detection:** Run quality validation tests on macOS 14 vs 15. If results differ, this bug may be present.
+
+**Phase:** Environment validation phase. Check macOS version before enabling MPS.
+
+### Minor Pitfalls
+
+### Pitfall 34: Warmup Iterations Counted in Benchmarks
+
+**What goes wrong:** Benchmark code includes the first few iterations in timing averages. First iterations are slow due to: JIT compilation, cuDNN/MPS autotuning, lazy module initialization, memory allocation. This skews benchmarks to show slower-than-actual performance.
+
+**Why it happens:** Copy-paste benchmark code that doesn't follow PyTorch best practices. Quick timing during development without proper methodology.
+
+**Prevention:**
+- Always run 5-10 warmup iterations before starting timing
+- Use `torch.utils.benchmark.Timer` which handles warmup automatically
+- For autotuning (cuDNN), the first run for each input shape is slow -- warm up with representative inputs
+- Don't benchmark immediately after model load -- run a few inferences first
+
+**Phase:** Benchmarking methodology. Establish before any optimization measurement.
+
+### Pitfall 35: Unified Memory Accounting Confusion
+
+**What goes wrong:** Developers check `torch.mps.current_allocated_memory()` and see low usage, but the system is still under memory pressure. They increase batch sizes thinking there's headroom, causing system slowdown.
+
+**Why it happens:** MPS unified memory is shared with the CPU and system. `current_allocated_memory()` shows PyTorch's GPU allocations but not: model weights in CPU memory, system overhead, other applications' memory, memory mapped files. The "available" memory is much less than `total - allocated`.
+
+**Prevention:**
+- Monitor system-level memory, not just PyTorch's view: `psutil.virtual_memory().available`
+- Keep at least 4GB headroom for system operations on 16GB machines
+- Test with other applications running (Safari, VS Code) -- real users don't close everything
+- Use Activity Monitor's "Memory Pressure" as the source of truth
+
+**Phase:** Memory management phase. System-level monitoring.
+
+### Pitfall 36: HuggingFace Model Downloads During Processing
+
+**What goes wrong:** First run of Surya triggers model downloads (several GB). This happens during OCR processing, causing: timeout errors, incomplete downloads on network issues, inconsistent timing between first and subsequent runs.
+
+**Why it happens:** HuggingFace Transformers downloads models lazily on first use. In development, models are already cached. In production/new installs, the download happens unexpectedly.
+
+**Prevention:**
+- Pre-download models during installation: `python -c "from marker.models import create_model_dict; create_model_dict()"`
+- Set `HF_HUB_OFFLINE=1` in production to fail fast if models missing (rather than hanging on download)
+- Include model download in installation instructions or setup script
+- Cache models in Docker images for containerized deployments
+- Set explicit cache location: `HF_HUB_CACHE=/path/to/cache` for reproducibility
+
+**Detection:** Time first run vs second run. If first is 10+ minutes longer, downloads are happening.
+
+**Phase:** Environment setup phase. Pre-download during installation.
+
+---
+
+## Phase-Specific Warnings (V3 Additions)
 
 | Phase Topic | Likely Pitfall | Mitigation |
 |-------------|---------------|------------|
-| Library API design | CLI concerns leak into library | Define exception hierarchy first |
-| Pipeline restructure | Surya results not written back | Integration test verifying output changes |
-| Pipeline restructure | Page mapping corruption | Explicit IDs, not positional indices |
-| Text post-processing | Dehyphenation destroys compound words (#12) | Soft/hard hyphen distinction + dictionary lookup |
-| Text post-processing | Unicode normalization inconsistency (#13) | NFC normalize at engine boundary |
-| Text post-processing | Footnote references lost (#16) | Conservative rules, academic-text-aware |
-| Text post-processing | Greek/German terms mangled (#21) | Share quality.py whitelist with post-processor |
-| Structured logging | Worker logs silently lost (#14) | QueueHandler + Manager().Queue() pattern |
-| Structured logging | Infinite loop via propagation (#18) | Separate listener logger from QueueHandler logger |
-| Structured logging | MCP _log() bypass (#22) | Remove bypass, route through logging module |
-| MCP async | Server crash on client timeout (#15) | FastMCP task=True + progress notifications |
-| MCP async | Concurrent run collisions (#20) | UUID-based work directories |
-| Environment validation | Startup blocked by optional checks (#19) | Eager for required, lazy for optional |
-| Temp directory management | Work dir collision (#20) | Per-run isolation with tempfile |
+| MPS optimization | Fork corrupts GPU state (#24) | Verify spawn context, no PyTorch init before pool |
+| MPS optimization | TableRec falls back to CPU (#26) | Audit actual device usage per model |
+| MPS optimization | Float64 crashes (#32) | Force float32 default |
+| MPS optimization | Non-contiguous tensor bug (#33) | Require macOS 15+ |
+| Benchmarking | No GPU sync shows wrong times (#25) | Use torch.mps.synchronize() |
+| Benchmarking | Warmup counted in averages (#34) | 5-10 warmup iterations before timing |
+| Batch size tuning | MPS memory pressure (#28) | Start conservative, adaptive sizing |
+| Model caching | Load time dominates small docs (#29) | Warm model pool in MCP server |
+| Memory management | MPS leaks in long-running server (#27) | empty_cache() + gc.collect() between docs |
+| Memory management | Unified memory accounting (#35) | System-level monitoring, not just PyTorch |
+| Environment setup | Downloads during processing (#36) | Pre-download models at install time |
+| Device selection | Text detection MPS bug (#30) | Consider CPU for detection, MPS for recognition |
+
+---
 
 ## Sources
 
+### V1/V2 Sources
 - Direct analysis of current codebase: `pipeline.py`, `processor.py`, `quality.py`, `mcp_server.py` (HIGH confidence)
 - [Tesseract soft hyphen behavior](https://github.com/tesseract-ocr/tesseract/issues/2161) (HIGH confidence)
 - [Python multiprocessing logging patterns](https://signoz.io/guides/how-should-i-log-while-using-multiprocessing-in-python/) (MEDIUM confidence)
@@ -303,3 +606,17 @@ Pitfalls specific to adding text post-processing, structured logging, async MCP 
 - [FastMCP sync tool concurrency issues](https://github.com/jlowin/fastmcp/issues/864) (MEDIUM confidence)
 - [MCP timeout handling guide](https://mcpcat.io/guides/fixing-mcp-error-32001-request-timeout/) (MEDIUM confidence)
 - [concurrent-log-handler deprecation](https://pypi.org/project/concurrent-log-handler/) (MEDIUM confidence)
+
+### V3 Sources (MPS/Performance)
+- [PyTorch MPS documentation](https://docs.pytorch.org/docs/stable/mps.html) (HIGH confidence)
+- [PyTorch multiprocessing best practices](https://docs.pytorch.org/docs/stable/notes/multiprocessing.html) (HIGH confidence)
+- [Elana Simon: The bug that taught me more about PyTorch than years of using it](https://elanapearl.github.io/blog/2025/the-bug-that-taught-me-pytorch/) - Non-contiguous tensor bug deep dive (HIGH confidence)
+- [Apple Developer: Accelerated PyTorch training on Mac](https://developer.apple.com/metal/pytorch/) (HIGH confidence)
+- [PyTorch MPS memory leak issues](https://github.com/pytorch/pytorch/issues/154329) (MEDIUM confidence)
+- [Marker issue #875: 30x slower than Tesseract](https://github.com/datalab-to/marker/issues/875) - Version regression on Apple Silicon (HIGH confidence)
+- [Surya issue #207: MacBook M1 performance](https://github.com/VikParuchuri/surya/issues/207) - MPS batch size tuning (MEDIUM confidence)
+- [PyTorch Benchmark documentation](https://docs.pytorch.org/tutorials/recipes/recipes/benchmark.html) (HIGH confidence)
+- [torch.mps.synchronize() documentation](https://docs.pytorch.org/docs/stable/generated/torch.mps.synchronize.html) (HIGH confidence)
+- [MPS SDPA float32 memory leak](https://github.com/pytorch/pytorch/issues/152344) (MEDIUM confidence)
+- [PYTORCH_ENABLE_MPS_FALLBACK usage](https://lightning.ai/docs/pytorch/stable/accelerators/mps_basic.html) (HIGH confidence)
+- [Marker models.py MPS fallback code](https://github.com/datalab-to/marker/blob/master/marker/models.py) (HIGH confidence)

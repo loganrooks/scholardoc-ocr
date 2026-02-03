@@ -1,280 +1,534 @@
-# Architecture Patterns: v2.0 Integration
+# Architecture Patterns: Performance Optimization Integration
 
-**Project:** scholardoc-ocr v2.0
-**Researched:** 2026-02-02
-**Confidence:** HIGH (based on direct codebase analysis)
+**Domain:** OCR Pipeline Performance Optimization
+**Researched:** 2026-02-03
+**Confidence:** HIGH (based on existing codebase analysis + verified external documentation)
 
-## Current Architecture (Post v1.0 Refactor)
+## Current Architecture Overview
 
 ```
-cli.py (argparse + Rich) ──┐
-                            ├──> pipeline.py (run_pipeline) ──> BatchResult
-mcp_server.py (FastMCP) ───┘         │
-                                     ├── _tesseract_worker (ProcessPoolExecutor)
-                                     │       └── processor.py, quality.py, tesseract.py
-                                     └── surya phase (main process, sequential per-file)
-                                             └── surya.py
-
-types.py       -- FileResult, PageResult, BatchResult, OCREngine
-callbacks.py   -- PipelineCallback protocol, LoggingCallback, NullCallback
-cli.py         -- RichCallback
-exceptions.py  -- Custom exceptions
-quality.py     -- QualityAnalyzer (regex scoring)
-confidence.py  -- Signal-based confidence
-dictionary.py  -- Academic term whitelist
+CLI/MCP Request
+       |
+       v
++------------------+
+|   PipelineConfig |
++------------------+
+       |
+       v
++------------------+     +-------------------+
+|   run_pipeline   |---->| ProcessPoolExecutor|
+|   (pipeline.py)  |     | (Tesseract workers)|
++------------------+     +-------------------+
+       |                          |
+       v                          v
++------------------+     +-------------------+
+| Phase 1: Tess    |     | _tesseract_worker |
+| (parallel)       |     | (per-file)        |
++------------------+     +-------------------+
+       |
+       v
++------------------+
+| Quality Analysis |
+| (per-page scores)|
++------------------+
+       |
+       v (if flagged pages exist)
++------------------+
+| Phase 2: Surya   |
+| (sequential/file)|
++------------------+
+       |
+       v
++------------------+
+| surya.load_models| <-- Models loaded once per batch
++------------------+
+       |
+       v (for each file with flagged pages)
++------------------+
+| surya.convert_pdf| <-- Sequential per-file
+| (PdfConverter)   |
++------------------+
 ```
 
-Key constraint: `run_pipeline(config, callback)` is the single entry point for both CLI and MCP. All v2.0 features must integrate through or alongside this function, not bypass it.
+### Current Pain Points
 
-## v2.0 New Components
+1. **Sequential Per-File Surya Processing**: Lines 378-459 in `pipeline.py` iterate over files sequentially. Each `convert_pdf()` call creates a new `PdfConverter` instance, even though models are shared.
 
-### 1. Post-Processing Module (`postprocess.py`) -- NEW FILE
+2. **No Cross-File Page Batching**: If 5 files each have 2 flagged pages, we make 5 separate Surya calls instead of one batch of 10 pages. Surya's batch processing optimizations are underutilized.
 
-**Integration point:** After OCR text extraction, before final output write. Text is currently written at two places in `_tesseract_worker` (lines 93 and 162) and updated in the Surya phase (line 391).
+3. **MCP Model Loading Per-Request**: Each `ocr()` or `ocr_async()` call starts fresh. Models are reloaded even for back-to-back requests.
 
-**Design:**
+4. **No MPS Acceleration**: `surya.load_models()` uses auto-detection but doesn't explicitly configure MPS for Apple Silicon.
+
+5. **No Benchmarking Infrastructure**: No way to measure or compare performance across changes.
+
+## Recommended Architecture
+
+### Component Overview
+
+```
+CLI/MCP Request
+       |
+       v
++------------------+
+|   PipelineConfig |
++------------------+
+       |
+       v
++------------------+
+|   ModelManager   | <-- NEW: Singleton model cache
+|   (model_cache.py)|
++------------------+
+       |
+       v
++------------------+     +-------------------+
+|   run_pipeline   |---->| ProcessPoolExecutor|
+|   (pipeline.py)  |     | (Tesseract workers)|
++------------------+     +-------------------+
+       |
+       v
++------------------+
+| Phase 1: Tess    |
++------------------+
+       |
+       v
++------------------+
+| Flagged Page     | <-- NEW: Collect ALL flagged pages
+| Aggregation      |      across ALL files
++------------------+
+       |
+       v
++------------------+
+| Phase 2: Surya   | <-- MODIFIED: Single batch call
+| (batch_convert)  |     for all flagged pages
++------------------+
+       |
+       v
++------------------+
+| Result Mapping   | <-- NEW: Map batch results
+|                  |     back to source files
++------------------+
+```
+
+### New Components
+
+#### 1. ModelManager (model_cache.py)
+
+**Purpose:** Singleton that manages Surya model lifecycle with TTL-based eviction.
 
 ```python
 @dataclass
-class PostProcessConfig:
-    dehyphenate: bool = True
-    normalize_unicode: bool = True
-    fix_ligatures: bool = True
-    fix_line_breaks: bool = True
-    fix_punctuation: bool = True
+class ModelCacheConfig:
+    device: str | None = None  # None = auto-detect, "mps", "cuda", "cpu"
+    ttl_seconds: float = 1800  # 30 minutes default
+    preload: bool = False      # Preload on first import
 
-class TextPostProcessor:
-    def __init__(self, config: PostProcessConfig | None = None): ...
-    def process(self, text: str) -> str: ...
-    def process_page(self, text: str) -> str: ...
-    def process_pages(self, pages: list[str]) -> list[str]: ...
+class ModelManager:
+    """Singleton manager for Surya model lifecycle."""
+
+    _instance: ModelManager | None = None
+    _lock: threading.Lock = threading.Lock()
+
+    @classmethod
+    def instance(cls, config: ModelCacheConfig | None = None) -> ModelManager:
+        """Get or create the singleton instance."""
+        ...
+
+    def get_models(self) -> dict[str, Any]:
+        """Get models, loading if needed. Resets TTL on access."""
+        ...
+
+    def is_loaded(self) -> bool:
+        """Check if models are currently loaded."""
+        ...
+
+    def unload(self) -> None:
+        """Explicitly unload models to free memory."""
+        ...
+
+    def _check_expiry(self) -> None:
+        """Background thread to evict stale models."""
+        ...
 ```
 
-**Rationale:**
-- Callable independently (library-first): `TextPostProcessor().process(text)`
-- Stateless -- no dependency on pipeline types
-- Config dataclass matches existing pattern (PipelineConfig, TesseractConfig, SuryaConfig)
-- Takes and returns strings, not PageResult -- keeps it composable
+**Integration Points:**
+- `surya.py`: Modify `load_models()` to delegate to `ModelManager`
+- `mcp_server.py`: Access shared models across requests
+- `pipeline.py`: Use cached models instead of loading fresh
 
-**Pipeline integration:**
-- Add `post_process: bool = True` and `post_process_config: PostProcessConfig | None` to `PipelineConfig`
-- Apply in `_tesseract_worker` after text extraction, before writing .txt
-- Apply in Surya phase after `surya_markdown` is produced
-- Process text in place -- no need to store raw + processed separately
+**Lifecycle:**
+1. First request: Models loaded, TTL timer starts
+2. Subsequent requests: Models reused, TTL reset
+3. TTL expires with no requests: Models evicted, memory freed
+4. MCP server shutdown: Explicit cleanup
 
-**Dependencies:** ZERO. Pure text transforms. Build first.
+#### 2. Cross-File Batch Processor (batch.py)
 
-### 2. Structured Multiprocess Logging (`logging_config.py`) -- NEW FILE
-
-**Problem:** Worker processes each use module-level loggers. Logs interleave without structure. No JSON output. MCP server uses a manual `_log()` file-write hack.
-
-**Pattern: QueueHandler + ProcessPoolExecutor initializer**
-
-```python
-def setup_logging(
-    level: int = logging.INFO,
-    json_output: bool = False,
-    log_file: Path | None = None,
-) -> tuple[Queue, QueueListener]:
-    """Configure logging. Returns queue + listener for worker processes."""
-    ...
-
-def worker_logging_init(queue: Queue) -> None:
-    """Initializer for ProcessPoolExecutor workers."""
-    root = logging.getLogger()
-    root.handlers.clear()
-    root.addHandler(QueueHandler(queue))
-    root.setLevel(logging.DEBUG)
-
-def shutdown_logging(listener: QueueListener) -> None:
-    """Stop the QueueListener."""
-    listener.stop()
-```
-
-**Integration points:**
-- `run_pipeline()`: Create queue, pass to `ProcessPoolExecutor(initializer=worker_logging_init, initargs=(queue,))`
-- `cli.py main()`: Call `setup_logging()` instead of `logging.basicConfig()`
-- `mcp_server.py main()`: Call `setup_logging(json_output=True)` instead of manual `_log()` hack
-
-**Key detail:** Use `ProcessPoolExecutor(initializer=...)` rather than passing queue through `config_dict`. Runs once per worker process, not per task. Keeps config_dict clean.
-
-**`multiprocessing.Queue` is picklable.** Standard `queue.Queue` is NOT. Use the multiprocessing version.
-
-### 3. MCP Async Job Handling -- MODIFY `mcp_server.py`
-
-**Problem:** Current `ocr()` runs via `asyncio.to_thread()`. Large batches may timeout the MCP client.
-
-**Design:**
-
-```python
-_jobs: dict[str, JobStatus] = {}  # In-memory, ephemeral
-
-@dataclass
-class JobStatus:
-    job_id: str
-    status: str  # "pending" | "running" | "complete" | "failed"
-    created: float
-    result: dict | None = None
-    error: str | None = None
-    progress: dict | None = None
-
-@mcp.tool()
-async def ocr_async(input_path: str, ...) -> dict:
-    """Start OCR job, return job ID immediately."""
-    job_id = uuid4().hex[:8]
-    _jobs[job_id] = JobStatus(...)
-    asyncio.create_task(_run_ocr_job(job_id, ...))
-    return {"job_id": job_id, "status": "pending"}
-
-@mcp.tool()
-async def ocr_status(job_id: str) -> dict:
-    """Check job status and results."""
-    ...
-
-@mcp.tool()
-async def ocr_jobs() -> dict:
-    """List all jobs."""
-    ...
-```
-
-**Callback integration:** Create `AsyncJobCallback` implementing `PipelineCallback` that updates `_jobs[job_id].progress`. The protocol already exists -- this is a clean fit.
-
-**Thread safety:** `run_pipeline()` runs in a thread via `asyncio.to_thread`. Dict writes for status updates are atomic enough under CPython GIL. No lock needed for simple field assignments.
-
-**Keep existing `ocr()` tool unchanged** for backward compatibility. Add `ocr_async`, `ocr_status`, `ocr_jobs` as new tools.
-
-### 4. Environment Validation (`environment.py`) -- NEW FILE
+**Purpose:** Aggregate flagged pages across files and process in single Surya batch.
 
 ```python
 @dataclass
-class EnvironmentCheck:
-    name: str
-    available: bool
-    version: str | None = None
-    error: str | None = None
+class PageReference:
+    """Reference to a specific page in a specific file."""
+    file_path: Path
+    file_index: int      # Index in batch results
+    page_number: int     # 0-indexed page in source PDF
+    output_path: Path    # Where final PDF should go
 
-def validate_environment(require_surya: bool = False) -> list[EnvironmentCheck]:
-    """Check tesseract, ocrmypdf, ghostscript, optionally surya."""
+@dataclass
+class BatchJob:
+    """Collection of pages to process together."""
+    pages: list[PageReference]
+    temp_dir: Path
+
+    def create_batch_pdf(self) -> Path:
+        """Extract all flagged pages into single temp PDF."""
+        ...
+
+    def distribute_results(self, batch_text: str) -> dict[Path, dict[int, str]]:
+        """Map batch results back to source files."""
+        ...
+
+def collect_flagged_pages(
+    file_results: list[FileResult],
+    input_files: list[Path],
+    force_surya: bool = False,
+) -> BatchJob | None:
+    """Aggregate all flagged pages across files into a BatchJob."""
     ...
 
-def require_environment(require_surya: bool = False) -> None:
-    """Validate and raise EnvironmentError if critical tools missing."""
+def process_batch(
+    job: BatchJob,
+    model_manager: ModelManager,
+    config: SuryaConfig,
+) -> dict[Path, dict[int, str]]:
+    """Process entire batch and return per-file, per-page results."""
     ...
 ```
 
-**Integration:** Call at entry points only.
-- `cli.py main()`: `require_environment()` before `run_pipeline()`
-- `mcp_server.py`: Lazy on first `ocr()` call
-- `run_pipeline()`: Do NOT call here -- keep pipeline free of startup concerns
+**Data Flow for Cross-File Batching:**
 
-**Dependencies:** ZERO. Build anytime.
+```
+File A: Pages 0,1,2 (page 1 flagged)
+File B: Pages 0,1,2,3 (pages 2,3 flagged)
+File C: Pages 0,1 (page 0 flagged)
 
-### 5. Work Directory Cleanup -- MODIFY `pipeline.py`
+         |
+         v  collect_flagged_pages()
 
-Three-line change at end of `run_pipeline()`:
+BatchJob.pages = [
+    PageReference(A, 0, 1, output_A),  # A's page 1
+    PageReference(B, 1, 2, output_B),  # B's page 2
+    PageReference(B, 2, 3, output_B),  # B's page 3
+    PageReference(C, 3, 0, output_C),  # C's page 0
+]
+
+         |
+         v  create_batch_pdf()
+
+temp_batch.pdf: [A_p1, B_p2, B_p3, C_p0]  (4 pages total)
+
+         |
+         v  surya.convert_pdf(temp_batch.pdf)
+
+Single Surya call processes all 4 pages
+
+         |
+         v  distribute_results()
+
+{
+    output_A: {1: "text for A page 1"},
+    output_B: {2: "text for B page 2", 3: "text for B page 3"},
+    output_C: {0: "text for C page 0"},
+}
+```
+
+#### 3. Device Configuration (device.py)
+
+**Purpose:** Explicit device selection with MPS support.
 
 ```python
-if not config.debug:
-    work_dir = config.output_dir / "work"
-    if work_dir.exists():
-        shutil.rmtree(work_dir)
+from enum import StrEnum
+
+class Device(StrEnum):
+    AUTO = "auto"
+    CPU = "cpu"
+    CUDA = "cuda"
+    MPS = "mps"
+
+def detect_device() -> str:
+    """Detect best available device."""
+    import torch
+
+    if torch.backends.mps.is_available():
+        return "mps"
+    elif torch.cuda.is_available():
+        return "cuda"
+    return "cpu"
+
+def resolve_device(requested: str | Device | None) -> str:
+    """Resolve requested device to actual torch device string."""
+    if requested is None or requested == Device.AUTO:
+        return detect_device()
+    return str(requested)
+
+def validate_mps() -> bool:
+    """Check if MPS is functional (not just available)."""
+    # Some MPS operations have bugs; test basic functionality
+    ...
 ```
 
-Add `keep_work_dir: bool = False` to `PipelineConfig`. Trivial.
+**Integration:**
+- `ModelCacheConfig.device` uses this
+- `SuryaConfig` extended with `device` parameter
+- Environment variable `SCHOLARDOC_DEVICE` for override
 
-### 6. JSON Metadata Output -- MODIFY `pipeline.py` + `_tesseract_worker`
+#### 4. Benchmarking Infrastructure (benchmarks/)
 
-**Infrastructure already exists:** `BatchResult.to_dict()` and `to_json()` are in types.py.
-
-**What to add:**
-- In `_tesseract_worker`: Write `{stem}.json` alongside .txt and .pdf in final/
-- At end of `run_pipeline()`: Write `batch_metadata.json`
-- In `cli.py`: Add `--json` flag for stdout JSON instead of Rich table
-
-## Component Dependency Graph
+**Purpose:** Performance regression testing and comparison.
 
 ```
-environment.py          (independent)
-postprocess.py          (independent)
-    │
-    ▼
-pipeline.py changes     (integrates postprocess, cleanup, JSON output)
-    │
-    ▼
-logging_config.py       (needs pipeline.py worker init changes)
-    │
-    ▼
-mcp_server.py changes   (needs stable pipeline + logging)
-    │
-    ▼
-cli.py changes          (needs all above)
+benchmarks/
+    conftest.py          # pytest-benchmark fixtures
+    test_surya_batch.py  # Batch size benchmarks
+    test_pipeline.py     # End-to-end benchmarks
+    data/
+        sample_10page.pdf
+        sample_50page.pdf
+        sample_academic.pdf  # Dense text, complex layout
 ```
 
-## Recommended Build Order
+**Benchmark Categories:**
 
-| Order | Component | Rationale |
-|-------|-----------|-----------|
-| 1 | `environment.py` | Zero deps, immediate value, easy win |
-| 2 | `postprocess.py` | Zero deps, pure text transforms, excellent test surface |
-| 3 | Pipeline integration (postprocess + cleanup + JSON) | Single pass modifying pipeline.py |
-| 4 | `logging_config.py` + pipeline worker init | Touches ProcessPoolExecutor setup |
-| 5 | MCP async jobs | Needs stable pipeline + logging |
-| 6 | CLI updates (--json, env check) | Final integration layer |
+1. **Model Loading**: Time to load Surya models (cold vs cached)
+2. **Batch Processing**: Pages/second at different batch sizes
+3. **Device Comparison**: CPU vs MPS performance
+4. **End-to-End Pipeline**: Full Tesseract+Surya workflow
 
-## Data Flow: v2.0
+### Modified Components
+
+#### pipeline.py Changes
+
+**Current (lines 348-465):**
+```python
+# Sequential per-file Surya
+for file_result in flagged_results:
+    # ... extract pages, convert, map back
+```
+
+**Proposed:**
+```python
+# Batch all flagged pages
+from .batch import collect_flagged_pages, process_batch
+from .model_cache import ModelManager
+
+if flagged_results:
+    # Collect all flagged pages across all files
+    batch_job = collect_flagged_pages(
+        flagged_results, input_files, config.force_surya
+    )
+
+    if batch_job and batch_job.pages:
+        # Load models (cached if available)
+        model_manager = ModelManager.instance()
+
+        # Single batch call for all pages
+        results_map = process_batch(
+            batch_job, model_manager, surya_cfg
+        )
+
+        # Apply results back to file outputs
+        for file_result in flagged_results:
+            apply_surya_results(file_result, results_map)
+```
+
+#### surya.py Changes
+
+**Current:**
+```python
+def load_models(device: str | None = None) -> dict[str, Any]:
+    """Load Surya/Marker models once for reuse."""
+    ...
+```
+
+**Proposed:**
+```python
+def load_models(
+    device: str | None = None,
+    use_cache: bool = True,
+) -> dict[str, Any]:
+    """Load Surya/Marker models, optionally from cache."""
+    if use_cache:
+        from .model_cache import ModelManager, ModelCacheConfig
+        config = ModelCacheConfig(device=device)
+        return ModelManager.instance(config).get_models()
+
+    # Original implementation for explicit non-cached use
+    ...
+```
+
+#### mcp_server.py Changes
+
+**Current:** Each request calls `run_pipeline()` which loads models fresh.
+
+**Proposed:**
+```python
+# At module level or in main()
+from .model_cache import ModelManager, ModelCacheConfig
+
+def _ensure_models_ready():
+    """Pre-warm models if configured."""
+    config = ModelCacheConfig(
+        device=os.environ.get("SCHOLARDOC_DEVICE"),
+        ttl_seconds=float(os.environ.get("SCHOLARDOC_MODEL_TTL", 1800)),
+    )
+    ModelManager.instance(config)
+
+# In ocr() and ocr_async():
+# Models automatically shared via ModelManager singleton
+```
+
+## Component Boundaries
+
+| Component | Responsibility | Depends On |
+|-----------|---------------|------------|
+| `model_cache.py` | Model lifecycle, TTL eviction | `surya.py`, `device.py` |
+| `device.py` | Device detection, MPS validation | PyTorch |
+| `batch.py` | Page aggregation, result mapping | `processor.py`, `model_cache.py` |
+| `pipeline.py` | Orchestration (uses batch module) | All above |
+| `mcp_server.py` | Request handling (uses cached models) | `pipeline.py`, `model_cache.py` |
+
+## Data Flow Changes
+
+### Before (Current)
 
 ```
-CLI / MCP Server
-    |
-    +-- validate_environment()          [NEW: fail fast]
-    +-- setup_logging()                 [NEW: structured logs]
-    |
-    +-- run_pipeline(config, callback)
-            |
-            +-- Phase 1: ProcessPoolExecutor(initializer=worker_logging_init)
-            |     +-- _tesseract_worker()
-            |           +-- OCR (existing)
-            |           +-- post_process(text)     [NEW]
-            |           +-- write .txt, .pdf
-            |           +-- write .json metadata   [NEW]
-            |
-            +-- Phase 2: Surya (existing)
-            |     +-- post_process(surya_text)     [NEW]
-            |
-            +-- Write batch_metadata.json          [NEW]
-            +-- Cleanup work dir                   [NEW]
+File 1 flagged pages -> Surya call 1 -> Result 1
+File 2 flagged pages -> Surya call 2 -> Result 2
+File 3 flagged pages -> Surya call 3 -> Result 3
 ```
+
+### After (Cross-File Batching)
+
+```
+File 1 flagged pages -+
+File 2 flagged pages -+-> Aggregate -> Single Surya call -> Distribute results
+File 3 flagged pages -+
+```
+
+### Memory Timeline
+
+**Current:**
+```
+Request 1: [Load models ~~~~~ Process ~~~~~ Unload]
+Request 2: [Load models ~~~~~ Process ~~~~~ Unload]
+                ^^ Redundant 30-60s model load
+```
+
+**With Caching:**
+```
+Request 1: [Load models ~~~~~ Process ~~~~~]
+Request 2:                    [Process ~~~~~]
+                              ^^ Instant start
+           [...TTL expires...] [Unload]
+```
+
+## Suggested Build Order
+
+Based on dependencies and risk:
+
+### Phase 1: Device Configuration (Foundation)
+1. Create `device.py` with device detection
+2. Add `SCHOLARDOC_DEVICE` environment variable support
+3. Verify MPS works for Surya operations
+4. Unit tests for device detection
+
+**Rationale:** Low risk, enables MPS testing. No changes to core pipeline.
+
+### Phase 2: Model Caching (High Value)
+1. Create `model_cache.py` with ModelManager singleton
+2. Thread-safe model access with TTL eviction
+3. Modify `surya.py` to use cache by default
+4. Update `mcp_server.py` to share models across requests
+5. Add model preload option
+
+**Rationale:** Highest impact on MCP server performance. Independent of batching.
+
+### Phase 3: Cross-File Batching (Complex)
+1. Create `batch.py` with BatchJob infrastructure
+2. Add page extraction/aggregation logic
+3. Implement result distribution back to files
+4. Modify `pipeline.py` to use batch processing
+5. Integration tests with multi-file batches
+
+**Rationale:** Most complex change, benefits from stable model caching.
+
+### Phase 4: Benchmarking (Validation)
+1. Add `pytest-benchmark` dependency
+2. Create benchmark fixtures and sample data
+3. Baseline benchmarks for current performance
+4. Comparative benchmarks for optimizations
+5. CI integration for regression detection
+
+**Rationale:** Validates previous phases, catches regressions.
+
+## Scalability Considerations
+
+| Concern | At 10 pages | At 100 pages | At 1000 pages |
+|---------|-------------|--------------|---------------|
+| Batch PDF size | ~5MB | ~50MB | ~500MB |
+| Surya memory | ~3GB | ~5GB | ~8GB+ |
+| Temp disk | Negligible | ~100MB | ~1GB |
+| Processing time | ~30s | ~2min | ~15min |
+
+**Recommendations:**
+- For 1000+ pages, implement chunked batching (process 100 pages at a time)
+- Monitor memory pressure on MPS (Apple Silicon sensitive to memory)
+- Consider `PYTORCH_MPS_HIGH_WATERMARK_RATIO` for memory-constrained systems
 
 ## Anti-Patterns to Avoid
 
-### Do not add post-processing inside PageResult/FileResult
-Post-processing is a transform on text, not a property of results. Keep result types as data carriers. Process text before storing it.
+### 1. Loading Models in Worker Processes
+**Wrong:** Loading Surya models inside `_tesseract_worker`
+**Why:** Worker processes can't share GPU memory; models would load N times
+**Instead:** Keep models in main process, batch Surya in main thread
 
-### Do not make logging a required parameter of run_pipeline
-Keep `run_pipeline(config, callback)` signature. Logging setup happens in the caller (CLI, MCP server). Workers configure via initializer.
+### 2. Global Singleton Without Lifecycle Management
+**Wrong:** `_models = None; def get_models(): global _models; ...`
+**Why:** No TTL, no cleanup, memory leak on long-running server
+**Instead:** ModelManager class with explicit lifecycle
 
-### Do not store MCP jobs in a database
-MCP server is single-process. In-memory dict is correct. Jobs are ephemeral. SQLite adds complexity for zero benefit.
+### 3. Mixing Async and Synchronous Model Access
+**Wrong:** Calling `ModelManager.get_models()` from both sync and async code
+**Why:** Thread safety issues, potential deadlocks
+**Instead:** Always access from sync context; use `asyncio.to_thread()` for async wrappers
 
-### Do not validate environment inside the pipeline
-Fail fast at entry points. Do not let users wait through file discovery and worker spawning to discover ghostscript is missing.
+### 4. Assuming MPS Parity with CUDA
+**Wrong:** Expecting identical batch sizes and performance on MPS
+**Why:** MPS has different memory characteristics and some ops fall back to CPU
+**Instead:** Profile on target device, adjust batch sizes accordingly
 
-### Do not try to parallelize Surya across processes
-PyTorch GPU models cannot be shared across ProcessPoolExecutor workers (CUDA context is per-process). Surya runs in main process, uses GPU parallelism internally. This is correct and intentional.
+## Configuration Schema
 
-## Existing Patterns to Preserve
+```python
+# Extended PipelineConfig
+@dataclass
+class PipelineConfig:
+    # ... existing fields ...
 
-| Pattern | Where | Why |
-|---------|-------|-----|
-| `PipelineCallback` protocol | callbacks.py | Clean separation of progress reporting from logic |
-| Config dataclasses | pipeline.py, tesseract.py, surya.py | Type-safe, picklable configuration |
-| `to_dict()` / `to_json()` on result types | types.py | Serialization already built in |
-| Library-first design | pipeline.py exports `run_pipeline()` | CLI and MCP both call same function |
-| Surya in main process | pipeline.py Phase 2 | GPU model constraint |
+    # New performance fields
+    device: str | None = None           # None = auto-detect
+    use_model_cache: bool = True        # Enable model caching
+    model_ttl_seconds: float = 1800     # Cache TTL (30 min)
+    batch_cross_files: bool = True      # Enable cross-file batching
+    surya_batch_size: int = 50          # Pages per Surya batch
+```
 
 ## Sources
 
-- Direct codebase analysis of all modules (HIGH confidence)
-- Python `logging.handlers.QueueHandler` documentation (HIGH confidence)
-- Python `concurrent.futures.ProcessPoolExecutor` initializer parameter (HIGH confidence)
-- CPython GIL behavior for dict writes (HIGH confidence, well-established)
+- [PyTorch MPS Backend Documentation](https://docs.pytorch.org/docs/stable/notes/mps.html) - MPS requirements, capabilities, limitations
+- [Apple Developer: Accelerated PyTorch Training on Mac](https://developer.apple.com/metal/pytorch/) - Unified memory benefits, setup
+- [Marker GitHub Repository](https://github.com/VikParuchuri/marker) - PdfConverter usage, batch processing
+- [Surya GitHub Repository](https://github.com/datalab-to/surya) - Device configuration, batch size settings
+- [pytest-benchmark Documentation](https://pytest-benchmark.readthedocs.io/) - Benchmarking fixture usage
+- [Streamlit Caching Guide](https://docs.streamlit.io/develop/concepts/architecture/caching) - Singleton pattern for ML models
