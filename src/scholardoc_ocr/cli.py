@@ -242,6 +242,17 @@ Examples:
         help="Per-file timeout in seconds (default: 1800)",
     )
     parser.add_argument(
+        "--extract-text",
+        action="store_true",
+        help="Write post-processed .txt file alongside output PDF",
+    )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_output",
+        help="Output structured JSON results to stdout (suppresses progress display)",
+    )
+    parser.add_argument(
         "--no-color",
         action="store_true",
         help="Disable colored output",
@@ -341,23 +352,37 @@ Examples:
         langs_surya=langs_surya,
         keep_intermediates=args.keep_intermediates,
         timeout=args.timeout,
+        extract_text=args.extract_text,
     )
 
-    callback = RichCallback(console)
+    if args.json_output:
+        from .callbacks import LoggingCallback
+
+        callback = LoggingCallback()
+    else:
+        callback = RichCallback(console)
 
     try:
         batch = run_pipeline(config, callback=callback)
     except KeyboardInterrupt:
-        console.print("\n[yellow]Interrupted[/yellow]")
+        if not args.json_output:
+            console.print("\n[yellow]Interrupted[/yellow]")
         sys.exit(130)
     except Exception as e:
-        if args.debug:
+        if args.json_output:
+            import json
+
+            print(json.dumps({"error": str(e)}))
+        elif args.debug:
             console.print_exception()
         else:
             console.print(f"[red]Error:[/red] {e}")
         sys.exit(1)
 
-    _print_summary(console, batch, output_dir, args.quality, debug=args.debug)
+    if args.json_output:
+        print(batch.to_json(include_text=args.extract_text))
+    else:
+        _print_summary(console, batch, output_dir, args.quality, debug=args.debug)
     sys.exit(0 if batch.error_count == 0 else 1)
 
 
