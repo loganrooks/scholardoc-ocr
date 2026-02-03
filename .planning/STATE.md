@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-02)
 
 **Core value:** Produce accurate OCR text from scanned academic PDFs with minimal manual intervention, using quality-gated fallback to avoid expensive neural OCR unless needed.
-**Current focus:** v2.0 Phase 8 -- Robustness (COMPLETE)
+**Current focus:** v2.0 Phase 9 — Post-Processing
 
 ## Current Position
 
-Phase: 8 of 10 (Robustness)
-Plan: 04 of 4
-Status: Phase complete
-Last activity: 2026-02-02 -- Completed 08-04-PLAN.md
+Phase: 9 of 10 (Post-Processing)
+Plan: —
+Status: Ready to plan
+Last activity: 2026-02-02 — Phase 8 complete, verified
 
-Progress: [██████████] 100% (phase 8)
+Progress: [███░░░░░░░] 33% (v2.0: 1/3 phases)
 
 ## Performance Metrics
 
@@ -48,5 +48,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-02
-Stopped at: Completed phase 8 (Robustness) -- all 4 plans done
+Stopped at: Phase 8 complete and verified, ready for Phase 9
 Resume file: None
