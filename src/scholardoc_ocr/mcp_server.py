@@ -9,7 +9,7 @@ import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp import Context, FastMCP
 
 _LOG_FILE = Path.home() / "scholardoc_mcp.log"
 
@@ -187,6 +187,7 @@ async def ocr_status(job_id: str) -> dict:
 @mcp.tool()
 async def ocr(
     input_path: str,
+    ctx: Context,
     quality_threshold: float = 0.85,
     force_surya: bool = False,
     max_workers: int = 4,
@@ -199,6 +200,9 @@ async def ocr(
     Processes academic documents using a two-phase strategy: fast Tesseract OCR first,
     then Surya/Marker OCR on pages below the quality threshold. Returns structured
     metadata about the results (not the text content itself).
+
+    For long-running jobs (10+ minutes), prefer ocr_async() which returns immediately
+    and lets you poll progress via ocr_status().
 
     Args:
         input_path: Path to a PDF file or directory containing PDFs. Supports ~ expansion.
@@ -226,6 +230,8 @@ async def ocr(
         if not resolved.exists():
             return {"error": f"Path does not exist: {resolved}"}
 
+        await ctx.info(f"Starting OCR: {resolved}")
+
         # Determine input/output directories
         temp_page_file = None
         if resolved.is_file():
@@ -250,7 +256,10 @@ async def ocr(
                     raise ValueError
             except (ValueError, TypeError):
                 return {
-                    "error": f"Invalid page_range: '{page_range}'. Use 'start-end' (e.g. '45-80')"
+                    "error": (
+                        f"Invalid page_range: '{page_range}'."
+                        " Use 'start-end' (e.g. '45-80')"
+                    )
                 }
 
             import fitz
@@ -270,18 +279,23 @@ async def ocr(
 
             target_file = temp_page_file
 
-        # Build config
+        # Build config — set extract_text so pipeline preserves .txt files
         config = PipelineConfig(
             input_dir=input_dir if target_file is None else target_file.parent,
             output_dir=output_dir,
             quality_threshold=quality_threshold,
             force_surya=force_surya,
             max_workers=max_workers,
+            extract_text=extract_text,
         )
         if target_file is not None:
             config.files = [target_file.name]
 
-        # Run pipeline in thread to avoid blocking event loop
+        # Run pipeline in thread to avoid blocking event loop.
+        # NOTE: Fine-grained mid-pipeline progress is not available for the
+        # synchronous tool because run_pipeline executes in a separate thread
+        # and we cannot bridge async ctx.info calls from within it. Use
+        # ocr_async() + ocr_status() for detailed progress on long jobs.
         result = await asyncio.to_thread(run_pipeline, config)
         result_dict = result.to_dict(include_text=False)
         file_summary = [
@@ -301,22 +315,16 @@ async def ocr(
         if temp_page_file is not None and temp_page_file.exists():
             temp_page_file.unlink()
 
-        # Extract text post-processing
+        # Use pipeline's post-processed .txt files instead of re-extracting
+        # from the PDF (which would lose post-processing transforms like
+        # dehyphenation and paragraph joining).
         if extract_text:
-            import fitz
-
             for file_result in result_dict.get("files", []):
                 out_path_str = file_result.get("output_path")
-                if out_path_str:
-                    out_path = Path(out_path_str)
-                else:
+                if not out_path_str:
                     continue
-                if out_path.exists():
-                    doc = fitz.open(str(out_path))
-                    text_parts = [doc[i].get_text() for i in range(len(doc))]
-                    doc.close()
-                    txt_path = out_path.with_suffix(".txt")
-                    txt_path.write_text("\n".join(text_parts), encoding="utf-8")
+                txt_path = Path(out_path_str).with_suffix(".txt")
+                if txt_path.exists():
                     file_result["text_file"] = str(txt_path)
 
         # Output name post-processing
@@ -339,6 +347,14 @@ async def ocr(
                         new_txt = new_path.with_suffix(".txt")
                         old_txt.rename(new_txt)
                         files[0]["text_file"] = str(new_txt)
+
+        success_count = sum(
+            1 for f in result_dict.get("files", []) if f.get("success")
+        )
+        error_count = sum(
+            1 for f in result_dict.get("files", []) if not f.get("success")
+        )
+        await ctx.info(f"OCR complete: {success_count} succeeded, {error_count} failed")
 
         return result_dict
 
