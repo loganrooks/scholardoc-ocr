@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-02-03)
 ## Current Position
 
 Phase: 11 of 14 (Benchmarking Foundation)
-Plan: 01, 03 of 6 complete
+Plan: 01, 02, 03 of 6 complete
 Status: In progress
-Last activity: 2026-02-03 — Completed 11-01-PLAN.md (Benchmark Infrastructure)
+Last activity: 2026-02-03 — Completed 11-02-PLAN.md (Benchmark Tests)
 
-Progress: v1.0 [##########] | v2.0 [##########] | v2.1 [##        ] 17%
+Progress: v1.0 [##########] | v2.0 [##########] | v2.1 [###       ] 25%
 
 ## Performance Metrics
 
@@ -27,7 +27,7 @@ Progress: v1.0 [##########] | v2.0 [##########] | v2.1 [##        ] 17%
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 11. Benchmarking | 2/6 | 8min | 4min |
+| 11. Benchmarking | 3/6 | 13min | 4.3min |
 | 12. Device Config | - | - | - |
 | 13. Model Caching | - | - | - |
 | 14. Batching | - | - | - |
@@ -47,6 +47,8 @@ Recent decisions affecting v2.1:
 - Engine aggregation: compute_engine_from_pages() ignores NONE pages when computing aggregate
 - Lazy torch imports: Avoid loading ML dependencies at module import time
 - Session-scoped fixtures: Share loaded models across entire benchmark test session
+- Pedantic mode for GPU benchmarks: rounds=3/warmup=0 for cold start, rounds=5/warmup=1 for inference
+- Hardware profile grouping: benchmark-group-by=param:hardware_profile,func for BENCH-05 baselines
 
 ### Pending Todos
 
@@ -66,5 +68,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-03
-Stopped at: Completed 11-01-PLAN.md (Benchmark Infrastructure)
+Stopped at: Completed 11-02-PLAN.md (Benchmark Tests)
 Resume file: None
