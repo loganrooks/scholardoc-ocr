@@ -19,6 +19,7 @@ from .callbacks import (
     PipelineCallback,
     ProgressEvent,
 )
+from .timing import mps_sync
 from .types import BatchResult, FileResult, OCREngine, PageResult, PageStatus
 
 logger = logging.getLogger(__name__)
@@ -369,9 +370,10 @@ def run_pipeline(
             cb.on_model(ModelEvent(model_name="surya", status="loading"))
             t0 = time.time()
             model_dict = surya.load_models()
-            model_time = time.time() - t0
+            mps_sync()  # Ensure GPU work completes before timing
+            surya_model_load_time = time.time() - t0
             cb.on_model(ModelEvent(
-                model_name="surya", status="loaded", time_seconds=model_time
+                model_name="surya", status="loaded", time_seconds=surya_model_load_time
             ))
 
             surya_completed = 0
@@ -411,10 +413,16 @@ def run_pipeline(
                     from .surya import SuryaConfig
 
                     surya_cfg = SuryaConfig(langs=config.langs_surya)
+                    t_inference = time.time()
                     surya_markdown = surya.convert_pdf(
                         input_path, model_dict, config=surya_cfg,
                         page_range=bad_indices,
                     )
+                    mps_sync()  # Ensure GPU work completes before timing
+                    surya_inference_time = time.time() - t_inference
+
+                    # Update phase_timings for this file
+                    file_result.phase_timings["surya_inference"] = surya_inference_time
 
                     # Write Surya text back to output .txt file
                     text_path = (
@@ -463,6 +471,11 @@ def run_pipeline(
                 files_count=len(flagged_results),
                 pages_count=total_flagged_pages,
             ))
+
+            # Store model load time in all files that used Surya
+            for file_result in flagged_results:
+                if "surya_inference" in file_result.phase_timings:
+                    file_result.phase_timings["surya_model_load"] = surya_model_load_time
 
         # --- Write JSON metadata files ---
         final_dir = config.output_dir / "final"
