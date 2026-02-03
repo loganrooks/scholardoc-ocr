@@ -55,6 +55,7 @@ class OCREngine(StrEnum):
     TESSERACT = "tesseract"
     SURYA = "surya"
     EXISTING = "existing"
+    MIXED = "mixed"  # When some pages used Tesseract, others used Surya
     NONE = "none"
 
 
@@ -97,6 +98,33 @@ class PageResult:
         if include_text and self.text is not None:
             d["text"] = self.text
         return d
+
+
+def compute_engine_from_pages(pages: list[PageResult]) -> OCREngine:
+    """Determine top-level engine from per-page engines.
+
+    Args:
+        pages: List of PageResult objects with per-page engine values.
+
+    Returns:
+        - TESSERACT if all pages used Tesseract
+        - SURYA if all pages used Surya
+        - EXISTING if all pages had existing text
+        - MIXED if multiple engines were used
+        - NONE if no pages or all pages have NONE engine
+    """
+    engines = {p.engine for p in pages if p.engine != OCREngine.NONE}
+
+    if not engines:
+        return OCREngine.NONE
+    if engines == {OCREngine.TESSERACT}:
+        return OCREngine.TESSERACT
+    if engines == {OCREngine.SURYA}:
+        return OCREngine.SURYA
+    if engines == {OCREngine.EXISTING}:
+        return OCREngine.EXISTING
+    # Multiple engines used = mixed
+    return OCREngine.MIXED
 
 
 @dataclass
