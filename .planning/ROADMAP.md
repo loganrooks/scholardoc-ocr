@@ -19,7 +19,7 @@ See .planning/MILESTONES.md for v1.0 details. 7 phases, 17 plans, 30 requirement
 **Milestone Goal:** Produce RAG-ready text output from academic PDFs with robust operational behavior, structured logging, and async MCP support.
 
 - [x] **Phase 8: Robustness** - Structured logging, environment validation, work directory management, timeout protection
-- [ ] **Phase 9: Post-Processing** - Unicode normalization, dehyphenation, line break and punctuation cleanup for RAG-ready text
+- [x] **Phase 9: Post-Processing** - Unicode normalization, dehyphenation, line break and punctuation cleanup for RAG-ready text
 - [ ] **Phase 10: Output and MCP** - JSON metadata, CLI text extraction, async MCP job handling
 
 ## Phase Details
@@ -54,8 +54,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 09-01-PLAN.md — TDD: postprocess.py module (unicode, paragraphs, dehyphenation, punctuation)
-- [ ] 09-02-PLAN.md — Integrate postprocess into pipeline text output
+- [x] 09-01-PLAN.md — TDD: postprocess.py module (unicode, paragraphs, dehyphenation, punctuation)
+- [x] 09-02-PLAN.md — Integrate postprocess into pipeline text output
 
 ### Phase 10: Output and MCP
 **Goal**: Pipeline results are available in structured formats for programmatic consumers -- JSON metadata alongside PDFs, text extraction via CLI flag, and async MCP handling for long-running jobs.
@@ -79,5 +79,5 @@ Plans:
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 8. Robustness | v2.0 | 4/4 | ✓ Complete | 2026-02-02 |
-| 9. Post-Processing | v2.0 | 0/2 | Planned | - |
+| 9. Post-Processing | v2.0 | 2/2 | ✓ Complete | 2026-02-02 |
 | 10. Output and MCP | v2.0 | 0/TBD | Not started | - |

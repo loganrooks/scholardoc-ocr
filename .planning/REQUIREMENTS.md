@@ -7,13 +7,13 @@
 
 ### Post-Processing
 
-- [ ] **POST-01**: Unicode NFC normalization applied to all extracted text (Tesseract and Surya output unified)
-- [ ] **POST-02**: Soft hyphens (U+00AD) stripped from output
-- [ ] **POST-03**: Ligatures decomposed to ASCII equivalents (fi, fl, ff, ffi, ffl)
-- [ ] **POST-04**: Line breaks within paragraphs normalized to spaces; paragraph boundaries preserved
-- [ ] **POST-05**: Hyphenated words split across lines rejoined (basic pattern: word-\nword)
-- [ ] **POST-06**: Language-aware dehyphenation — German compounds and French hyphenated names preserved as intentional hyphens
-- [ ] **POST-07**: Punctuation normalized (whitespace around punctuation, double spaces collapsed)
+- [x] **POST-01**: Unicode NFC normalization applied to all extracted text (Tesseract and Surya output unified)
+- [x] **POST-02**: Soft hyphens (U+00AD) stripped from output
+- [x] **POST-03**: Ligatures decomposed to ASCII equivalents (fi, fl, ff, ffi, ffl)
+- [x] **POST-04**: Line breaks within paragraphs normalized to spaces; paragraph boundaries preserved
+- [x] **POST-05**: Hyphenated words split across lines rejoined (basic pattern: word-\nword)
+- [x] **POST-06**: Language-aware dehyphenation — German compounds and French hyphenated names preserved as intentional hyphens
+- [x] **POST-07**: Punctuation normalized (whitespace around punctuation, double spaces collapsed)
 
 ### Robustness
 
@@ -67,13 +67,13 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| POST-01 | Phase 9 | Pending |
-| POST-02 | Phase 9 | Pending |
-| POST-03 | Phase 9 | Pending |
-| POST-04 | Phase 9 | Pending |
-| POST-05 | Phase 9 | Pending |
-| POST-06 | Phase 9 | Pending |
-| POST-07 | Phase 9 | Pending |
+| POST-01 | Phase 9 | Complete |
+| POST-02 | Phase 9 | Complete |
+| POST-03 | Phase 9 | Complete |
+| POST-04 | Phase 9 | Complete |
+| POST-05 | Phase 9 | Complete |
+| POST-06 | Phase 9 | Complete |
+| POST-07 | Phase 9 | Complete |
 | ROBU-01 | Phase 8 | Complete |
 | ROBU-02 | Phase 8 | Complete |
 | ROBU-03 | Phase 8 | Complete |
