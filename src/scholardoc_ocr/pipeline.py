@@ -40,6 +40,8 @@ class PipelineConfig:
     files: list[str] = field(default_factory=list)
     langs_tesseract: str = "eng,fra,ell,lat,deu"
     langs_surya: str = "en,fr,el,la,de"
+    keep_intermediates: bool = False
+    timeout: int = 1800
 
 
 def _tesseract_worker(
@@ -217,6 +219,7 @@ def run_pipeline(
         BatchResult with per-file and per-page details.
     """
     from . import surya
+    from .logging_ import setup_main_logging, stop_logging, worker_log_initializer
 
     cb: PipelineCallback = callback or LoggingCallback()
     pipeline_start = time.time()
@@ -225,211 +228,263 @@ def run_pipeline(
     (config.output_dir / "work").mkdir(exist_ok=True)
     (config.output_dir / "final").mkdir(exist_ok=True)
 
-    # --- File discovery ---
-    input_files: list[Path] = []
-    if config.files:
-        for filename in config.files:
-            path = config.input_dir / filename
-            if path.exists():
-                input_files.append(path)
-            else:
-                logger.warning("Not found: %s", filename)
-    elif config.input_dir.is_dir():
-        input_files = sorted(config.input_dir.glob("*.pdf"))
+    # Set up queue-based logging for worker processes
+    log_dir = config.output_dir / "logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_queue, log_listener = setup_main_logging(log_dir=log_dir, verbose=config.debug)
 
-    if not input_files:
-        logger.warning("No input files found")
-        return BatchResult(files=[], total_time_seconds=0.0)
+    try:
+        # --- File discovery ---
+        input_files: list[Path] = []
+        if config.files:
+            for filename in config.files:
+                path = config.input_dir / filename
+                if path.exists():
+                    input_files.append(path)
+                else:
+                    logger.warning("Not found: %s", filename)
+        elif config.input_dir.is_dir():
+            input_files = sorted(config.input_dir.glob("*.pdf"))
 
-    # --- Resource-aware worker calculation ---
-    total_cores = os.cpu_count() or 4
-    num_files = len(input_files)
-    jobs_per_file = max(1, total_cores // max(1, num_files))
-    pool_workers = max(1, min(config.max_workers, total_cores // jobs_per_file))
+        if not input_files:
+            logger.warning("No input files found")
+            return BatchResult(files=[], total_time_seconds=0.0)
 
-    logger.info(
-        "Pipeline: %d files, %d pool workers, %d jobs/file",
-        num_files, pool_workers, jobs_per_file,
-    )
+        # --- Resource-aware worker calculation ---
+        total_cores = os.cpu_count() or 4
+        num_files = len(input_files)
+        jobs_per_file = max(1, total_cores // max(1, num_files))
+        pool_workers = max(1, min(config.max_workers, total_cores // jobs_per_file))
 
-    # Prepare config dict (picklable)
-    config_dict = {
-        "langs_tesseract": config.langs_tesseract.split(","),
-        "langs_surya": config.langs_surya.split(","),
-        "quality_threshold": config.quality_threshold,
-        "force_tesseract": config.force_tesseract,
-        "debug": config.debug,
-        "max_samples": config.max_samples,
-        "jobs_per_file": jobs_per_file,
-    }
-
-    # --- Phase 1: Parallel Tesseract ---
-    cb.on_phase(PhaseEvent(
-        phase="tesseract", status="started",
-        files_count=num_files, pages_count=0,
-    ))
-
-    file_results: list[FileResult] = []
-    completed = 0
-
-    with ProcessPoolExecutor(max_workers=pool_workers) as executor:
-        future_to_path = {}
-        for path in input_files:
-            future = executor.submit(_tesseract_worker, path, config.output_dir, config_dict)
-            future_to_path[future] = path
-
-        for future in as_completed(future_to_path):
-            path = future_to_path[future]
-            try:
-                result = future.result()
-                file_results.append(result)
-                completed += 1
-                cb.on_progress(ProgressEvent(
-                    phase="tesseract", current=completed,
-                    total=num_files, filename=result.filename,
-                ))
-                logger.info(
-                    "%s: %s (%.1f%% quality, %.1fs)",
-                    result.filename, result.engine,
-                    result.quality_score * 100, result.time_seconds,
-                )
-            except Exception as e:
-                logger.error("%s: worker failed: %s", path.name, e, exc_info=True)
-                file_results.append(FileResult(
-                    filename=path.name,
-                    success=False,
-                    engine=OCREngine.NONE,
-                    quality_score=0.0,
-                    page_count=0,
-                    pages=[],
-                    error=f"{type(e).__name__}: {e}\n{traceback.format_exc()}",
-                ))
-
-    cb.on_phase(PhaseEvent(
-        phase="tesseract", status="completed",
-        files_count=num_files, pages_count=0,
-    ))
-
-    # --- Phase 2: Sequential per-file Surya ---
-    flagged_results = [
-        r for r in file_results
-        if config.force_surya or r.flagged_pages
-    ]
-
-    if flagged_results:
-        total_flagged_pages = sum(len(r.flagged_pages) for r in flagged_results)
         logger.info(
-            "Phase 2: Surya OCR — %d files, %d flagged pages",
-            len(flagged_results), total_flagged_pages,
+            "Pipeline: %d files, %d pool workers, %d jobs/file",
+            num_files, pool_workers, jobs_per_file,
         )
 
-        cb.on_phase(PhaseEvent(
-            phase="surya", status="started",
-            files_count=len(flagged_results), pages_count=total_flagged_pages,
-        ))
-
-        # Load models once
-        cb.on_model(ModelEvent(model_name="surya", status="loading"))
-        t0 = time.time()
-        model_dict = surya.load_models()
-        model_time = time.time() - t0
-        cb.on_model(ModelEvent(model_name="surya", status="loaded", time_seconds=model_time))
-
-        surya_completed = 0
-        for file_result in flagged_results:
-            try:
-                input_path = config.input_dir / file_result.filename
-                if not input_path.exists():
-                    # Try files list directly
-                    input_path = next(
-                        (p for p in input_files if p.name == file_result.filename), None
-                    )
-                    if input_path is None:
-                        logger.warning("Cannot find source for Surya: %s", file_result.filename)
-                        continue
-
-                # Get flagged page indices
-                if config.force_surya:
-                    bad_indices = list(range(file_result.page_count))
-                else:
-                    bad_indices = [p.page_number for p in file_result.flagged_pages]
-
-                if not bad_indices:
-                    continue
-
-                logger.info(
-                    "%s: running Surya on %d pages %s",
-                    file_result.filename, len(bad_indices), bad_indices,
-                )
-
-                # Convert with Surya (BUG-02 fix: text comes from convert_pdf markdown)
-                from .surya import SuryaConfig
-
-                surya_cfg = SuryaConfig(langs=config.langs_surya)
-                surya_markdown = surya.convert_pdf(
-                    input_path, model_dict, config=surya_cfg, page_range=bad_indices
-                )
-
-                # BUG-01 fix: Write Surya text back to output .txt file
-                text_path = config.output_dir / "final" / f"{input_path.stem}.txt"
-                if text_path.exists():
-                    existing_text = text_path.read_text(encoding="utf-8")
-                    page_texts = existing_text.split("\n\n")
-
-                    # Surya returns one combined markdown for all requested pages.
-                    # Replace all flagged page sections with the Surya output.
-                    # Since Surya processes pages together, we replace the first
-                    # flagged page's text with the full markdown and clear the rest.
-                    for idx, page_num in enumerate(bad_indices):
-                        if page_num < len(page_texts):
-                            if idx == 0:
-                                page_texts[page_num] = surya_markdown
-                            else:
-                                # Surya combines all pages into one markdown block;
-                                # subsequent flagged pages get cleared to avoid duplication
-                                page_texts[page_num] = ""
-
-                    text_path.write_text("\n\n".join(page_texts), encoding="utf-8")
-
-                # Update PageResult entries for enhanced pages
-                for page in file_result.pages:
-                    if page.page_number in bad_indices:
-                        page.engine = OCREngine.SURYA
-                        page.status = PageStatus.GOOD
-                        page.flagged = False
-
-                surya_completed += 1
-                cb.on_progress(ProgressEvent(
-                    phase="surya", current=surya_completed,
-                    total=len(flagged_results), filename=file_result.filename,
-                ))
-                logger.info("%s: Surya enhancement complete", file_result.filename)
-
-            except Exception as e:
-                logger.warning(
-                    "%s: Surya failed, keeping Tesseract output: %s",
-                    file_result.filename, e, exc_info=True,
-                )
-
-        cb.on_phase(PhaseEvent(
-            phase="surya", status="completed",
-            files_count=len(flagged_results), pages_count=total_flagged_pages,
-        ))
-
-    elapsed = time.time() - pipeline_start
-    success_count = sum(1 for r in file_results if r.success)
-    logger.info(
-        "Pipeline complete: %d/%d successful in %.1fs, output: %s",
-        success_count, len(file_results), elapsed, config.output_dir / "final",
-    )
-
-    return BatchResult(
-        files=file_results,
-        total_time_seconds=elapsed,
-        config={
+        # Prepare config dict (picklable)
+        config_dict = {
+            "langs_tesseract": config.langs_tesseract.split(","),
+            "langs_surya": config.langs_surya.split(","),
             "quality_threshold": config.quality_threshold,
             "force_tesseract": config.force_tesseract,
-            "force_surya": config.force_surya,
-            "max_workers": config.max_workers,
-        },
-    )
+            "debug": config.debug,
+            "max_samples": config.max_samples,
+            "jobs_per_file": jobs_per_file,
+        }
+
+        # --- Phase 1: Parallel Tesseract ---
+        cb.on_phase(PhaseEvent(
+            phase="tesseract", status="started",
+            files_count=num_files, pages_count=0,
+        ))
+
+        file_results: list[FileResult] = []
+        completed = 0
+
+        with ProcessPoolExecutor(
+            max_workers=pool_workers,
+            initializer=worker_log_initializer,
+            initargs=(log_queue, log_dir),
+        ) as executor:
+            future_to_path = {}
+            for path in input_files:
+                future = executor.submit(
+                    _tesseract_worker, path, config.output_dir, config_dict
+                )
+                future_to_path[future] = path
+
+            for future in as_completed(future_to_path):
+                path = future_to_path[future]
+                try:
+                    result = future.result(timeout=config.timeout)
+                    file_results.append(result)
+                    completed += 1
+                    cb.on_progress(ProgressEvent(
+                        phase="tesseract", current=completed,
+                        total=num_files, filename=result.filename,
+                    ))
+                    logger.info(
+                        "%s: %s (%.1f%% quality, %.1fs)",
+                        result.filename, result.engine,
+                        result.quality_score * 100, result.time_seconds,
+                    )
+                except TimeoutError:
+                    logger.error(
+                        "%s: timed out after %ds", path.name, config.timeout
+                    )
+                    file_results.append(FileResult(
+                        filename=path.name,
+                        success=False,
+                        engine=OCREngine.NONE,
+                        quality_score=0.0,
+                        page_count=0,
+                        pages=[],
+                        error=f"Timed out after {config.timeout}s",
+                    ))
+                except Exception as e:
+                    logger.error(
+                        "%s: worker failed: %s", path.name, e, exc_info=True
+                    )
+                    file_results.append(FileResult(
+                        filename=path.name,
+                        success=False,
+                        engine=OCREngine.NONE,
+                        quality_score=0.0,
+                        page_count=0,
+                        pages=[],
+                        error=f"{type(e).__name__}: {e}\n{traceback.format_exc()}",
+                    ))
+
+        cb.on_phase(PhaseEvent(
+            phase="tesseract", status="completed",
+            files_count=num_files, pages_count=0,
+        ))
+
+        # --- Phase 2: Sequential per-file Surya ---
+        flagged_results = [
+            r for r in file_results
+            if config.force_surya or r.flagged_pages
+        ]
+
+        if flagged_results:
+            total_flagged_pages = sum(
+                len(r.flagged_pages) for r in flagged_results
+            )
+            logger.info(
+                "Phase 2: Surya OCR — %d files, %d flagged pages",
+                len(flagged_results), total_flagged_pages,
+            )
+
+            cb.on_phase(PhaseEvent(
+                phase="surya", status="started",
+                files_count=len(flagged_results),
+                pages_count=total_flagged_pages,
+            ))
+
+            # Load models once
+            cb.on_model(ModelEvent(model_name="surya", status="loading"))
+            t0 = time.time()
+            model_dict = surya.load_models()
+            model_time = time.time() - t0
+            cb.on_model(ModelEvent(
+                model_name="surya", status="loaded", time_seconds=model_time
+            ))
+
+            surya_completed = 0
+            for file_result in flagged_results:
+                try:
+                    input_path = config.input_dir / file_result.filename
+                    if not input_path.exists():
+                        # Try files list directly
+                        input_path = next(
+                            (p for p in input_files if p.name == file_result.filename),
+                            None,
+                        )
+                        if input_path is None:
+                            logger.warning(
+                                "Cannot find source for Surya: %s",
+                                file_result.filename,
+                            )
+                            continue
+
+                    # Get flagged page indices
+                    if config.force_surya:
+                        bad_indices = list(range(file_result.page_count))
+                    else:
+                        bad_indices = [
+                            p.page_number for p in file_result.flagged_pages
+                        ]
+
+                    if not bad_indices:
+                        continue
+
+                    logger.info(
+                        "%s: running Surya on %d pages %s",
+                        file_result.filename, len(bad_indices), bad_indices,
+                    )
+
+                    # Convert with Surya
+                    from .surya import SuryaConfig
+
+                    surya_cfg = SuryaConfig(langs=config.langs_surya)
+                    surya_markdown = surya.convert_pdf(
+                        input_path, model_dict, config=surya_cfg,
+                        page_range=bad_indices,
+                    )
+
+                    # Write Surya text back to output .txt file
+                    text_path = (
+                        config.output_dir / "final" / f"{input_path.stem}.txt"
+                    )
+                    if text_path.exists():
+                        existing_text = text_path.read_text(encoding="utf-8")
+                        page_texts = existing_text.split("\n\n")
+
+                        for idx, page_num in enumerate(bad_indices):
+                            if page_num < len(page_texts):
+                                if idx == 0:
+                                    page_texts[page_num] = surya_markdown
+                                else:
+                                    page_texts[page_num] = ""
+
+                        text_path.write_text(
+                            "\n\n".join(page_texts), encoding="utf-8"
+                        )
+
+                    # Update PageResult entries for enhanced pages
+                    for page in file_result.pages:
+                        if page.page_number in bad_indices:
+                            page.engine = OCREngine.SURYA
+                            page.status = PageStatus.GOOD
+                            page.flagged = False
+
+                    surya_completed += 1
+                    cb.on_progress(ProgressEvent(
+                        phase="surya", current=surya_completed,
+                        total=len(flagged_results),
+                        filename=file_result.filename,
+                    ))
+                    logger.info(
+                        "%s: Surya enhancement complete", file_result.filename
+                    )
+
+                except Exception as e:
+                    logger.warning(
+                        "%s: Surya failed, keeping Tesseract output: %s",
+                        file_result.filename, e, exc_info=True,
+                    )
+
+            cb.on_phase(PhaseEvent(
+                phase="surya", status="completed",
+                files_count=len(flagged_results),
+                pages_count=total_flagged_pages,
+            ))
+
+        # --- Cleanup work directory ---
+        work_dir = config.output_dir / "work"
+        if work_dir.exists() and not config.keep_intermediates:
+            shutil.rmtree(work_dir, ignore_errors=True)
+            logger.info("Cleaned up work directory")
+        elif config.keep_intermediates:
+            logger.info("Keeping work directory: %s", work_dir)
+
+        elapsed = time.time() - pipeline_start
+        success_count = sum(1 for r in file_results if r.success)
+        logger.info(
+            "Pipeline complete: %d/%d successful in %.1fs, output: %s",
+            success_count, len(file_results), elapsed,
+            config.output_dir / "final",
+        )
+
+        return BatchResult(
+            files=file_results,
+            total_time_seconds=elapsed,
+            config={
+                "quality_threshold": config.quality_threshold,
+                "force_tesseract": config.force_tesseract,
+                "force_surya": config.force_surya,
+                "max_workers": config.max_workers,
+            },
+        )
+    finally:
+        stop_logging(log_listener)
