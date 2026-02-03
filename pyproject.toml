@@ -41,3 +41,8 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W"]
+
+[tool.pytest.ini_options]
+# Benchmark grouping by hardware profile for BENCH-05 baseline selection
+# The hardware_profile fixture returns M1/M2/M3/M4/cpu
+addopts = "--benchmark-group-by=param:hardware_profile,func --benchmark-min-rounds=3"
