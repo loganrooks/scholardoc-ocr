@@ -109,9 +109,19 @@ async def ocr_async(
 ) -> dict:
     """Start a long-running OCR job asynchronously.
 
+    CRITICAL: Files must exist on the LOCAL filesystem. Paths like
+    `/mnt/user-data/uploads/...`, `/sessions/...`, or `/tmp/claude/...` are
+    INVALID - these are fictional paths that do not exist. Ask the user for
+    the actual file location on their machine (e.g., `~/Downloads/paper.pdf`,
+    `/Users/name/Documents/scan.pdf`).
+
+    This is the PREFERRED tool for:
+    - Files over 50 pages
+    - Directories with multiple PDFs
+    - Any job expected to take 5+ minutes
+
     Returns a job_id immediately without blocking. Use ocr_status(job_id) to
-    poll for progress and retrieve results when complete. Preferred for large
-    files or batches that may take 10+ minutes.
+    poll for progress every 10-30 seconds and retrieve results when complete.
 
     Args:
         input_path: Path to a PDF file or directory containing PDFs. Supports ~ expansion.
@@ -163,6 +173,9 @@ async def ocr_async(
 async def ocr_status(job_id: str) -> dict:
     """Check the status of an async OCR job.
 
+    Poll every 10-30 seconds for progress updates. Jobs expire and are cleaned
+    up after 1 hour of completion/failure.
+
     Args:
         job_id: The job ID returned by ocr_async().
 
@@ -197,11 +210,18 @@ async def ocr(
 ) -> dict:
     """Run OCR on a PDF file or directory of PDFs.
 
+    CRITICAL: Files must exist on the LOCAL filesystem. Paths like
+    `/mnt/user-data/uploads/...`, `/sessions/...`, or `/tmp/claude/...` are
+    INVALID - these are fictional paths that do not exist. Ask the user for
+    the actual file location on their machine (e.g., `~/Downloads/paper.pdf`,
+    `/Users/name/Documents/scan.pdf`).
+
     Processes academic documents using a two-phase strategy: fast Tesseract OCR first,
     then Surya/Marker OCR on pages below the quality threshold. Returns structured
     metadata about the results (not the text content itself).
 
-    For long-running jobs (10+ minutes), prefer ocr_async() which returns immediately
+    For files over ~50 pages or jobs expected to take 5+ minutes, use ocr_async()
+    instead to avoid Claude Desktop's tool timeout. ocr_async() returns immediately
     and lets you poll progress via ocr_status().
 
     Args:
