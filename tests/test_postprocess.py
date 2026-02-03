@@ -40,7 +40,7 @@ class TestNormalizeUnicode:
 
     def test_all_ligatures_together(self):
         text = "\uFB00\uFB01\uFB02\uFB03\uFB04"
-        assert normalize_unicode(text) == "fffiflffiffle"
+        assert normalize_unicode(text) == "fffiflffiffl"
 
 
 # --- POST-04: join_paragraphs ---
