@@ -20,7 +20,14 @@ from .callbacks import (
     ProgressEvent,
 )
 from .timing import mps_sync
-from .types import BatchResult, FileResult, OCREngine, PageResult, PageStatus
+from .types import (
+    BatchResult,
+    FileResult,
+    OCREngine,
+    PageResult,
+    PageStatus,
+    compute_engine_from_pages,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -443,12 +450,42 @@ def run_pipeline(
                             _postprocess("\n\n".join(page_texts)), encoding="utf-8"
                         )
 
-                    # Update PageResult entries for enhanced pages
-                    for page in file_result.pages:
-                        if page.page_number in bad_indices:
-                            page.engine = OCREngine.SURYA
-                            page.status = PageStatus.GOOD
-                            page.flagged = False
+                    # Re-analyze quality for Surya-enhanced pages (BENCH-08)
+                    from .quality import QualityAnalyzer
+
+                    analyzer = QualityAnalyzer(
+                        config.quality_threshold, max_samples=config.max_samples
+                    )
+
+                    # text_path was already defined earlier in this loop
+                    # Re-extract text from the Surya output to get actual quality
+                    if text_path.exists():
+                        surya_text = text_path.read_text(encoding="utf-8")
+                        # Simple page split - pages are separated by double newline
+                        surya_page_texts = surya_text.split("\n\n")
+
+                        for page in file_result.pages:
+                            if page.page_number in bad_indices:
+                                # Get the Surya text for this page if available
+                                if page.page_number < len(surya_page_texts):
+                                    page_text = surya_page_texts[page.page_number]
+                                    quality_result = analyzer.analyze_page(page_text)
+                                    page.quality_score = quality_result.score
+                                    page.flagged = quality_result.flagged
+                                    page.status = (
+                                        PageStatus.FLAGGED
+                                        if quality_result.flagged
+                                        else PageStatus.GOOD
+                                    )
+
+                                page.engine = OCREngine.SURYA
+                    else:
+                        # Fallback if text file doesn't exist - just update engine
+                        for page in file_result.pages:
+                            if page.page_number in bad_indices:
+                                page.engine = OCREngine.SURYA
+                                page.status = PageStatus.GOOD
+                                page.flagged = False
 
                     surya_completed += 1
                     cb.on_progress(ProgressEvent(
@@ -476,6 +513,18 @@ def run_pipeline(
             for file_result in flagged_results:
                 if "surya_inference" in file_result.phase_timings:
                     file_result.phase_timings["surya_model_load"] = surya_model_load_time
+
+        # Recompute top-level engine from per-page engines (BENCH-07)
+        for file_result in file_results:
+            if file_result.pages:
+                file_result.engine = compute_engine_from_pages(file_result.pages)
+
+        # Recompute overall quality score from page scores
+        for file_result in file_results:
+            if file_result.pages:
+                page_scores = [p.quality_score for p in file_result.pages]
+                if page_scores:
+                    file_result.quality_score = sum(page_scores) / len(page_scores)
 
         # --- Write JSON metadata files ---
         final_dir = config.output_dir / "final"
