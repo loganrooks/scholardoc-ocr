@@ -10,24 +10,24 @@ See: .planning/PROJECT.md (updated 2026-02-03)
 ## Current Position
 
 Phase: 11 of 14 (Benchmarking Foundation)
-Plan: 01, 02, 03 of 6 complete
+Plan: 01, 02, 03, 04 of 6 complete
 Status: In progress
-Last activity: 2026-02-03 — Completed 11-02-PLAN.md (Benchmark Tests)
+Last activity: 2026-02-03 - Completed 11-04-PLAN.md (Metrics Fixes)
 
-Progress: v1.0 [##########] | v2.0 [##########] | v2.1 [###       ] 25%
+Progress: v1.0 [##########] | v2.0 [##########] | v2.1 [####      ] 33%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 25 (v1.0: 17, v2.0: 8)
+- Total plans completed: 26 (v1.0: 17, v2.0: 8, v2.1: 4)
 - Average duration: ~30 min (estimate from previous milestones)
-- Total execution time: ~12.5 hours
+- Total execution time: ~13 hours
 
 **By Phase (v2.1):**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 11. Benchmarking | 3/6 | 13min | 4.3min |
+| 11. Benchmarking | 4/6 | 16min | 4min |
 | 12. Device Config | - | - | - |
 | 13. Model Caching | - | - | - |
 | 14. Batching | - | - | - |
@@ -49,6 +49,8 @@ Recent decisions affecting v2.1:
 - Session-scoped fixtures: Share loaded models across entire benchmark test session
 - Pedantic mode for GPU benchmarks: rounds=3/warmup=0 for cold start, rounds=5/warmup=1 for inference
 - Hardware profile grouping: benchmark-group-by=param:hardware_profile,func for BENCH-05 baselines
+- MPS sync for Surya timing: Always call mps_sync() before measuring GPU operation duration
+- Per-file timing keys: Store surya_model_load and surya_inference in phase_timings dict
 
 ### Pending Todos
 
@@ -68,5 +70,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-03
-Stopped at: Completed 11-02-PLAN.md (Benchmark Tests)
+Stopped at: Completed 11-04-PLAN.md (Metrics Fixes)
 Resume file: None
