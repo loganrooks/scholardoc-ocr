@@ -3,7 +3,7 @@
 ## Milestones
 
 - v1.0 MVP - Phases 1-7 (shipped 2026-02-02)
-- v2.0 Post-Processing + Robustness - Phases 8-10 (in progress)
+- v2.0 Post-Processing + Robustness - Phases 8-10 (shipped 2026-02-02)
 
 ## Phases
 
@@ -14,13 +14,13 @@ See .planning/MILESTONES.md for v1.0 details. 7 phases, 17 plans, 30 requirement
 
 </details>
 
-### v2.0 Post-Processing + Robustness (In Progress)
+### v2.0 Post-Processing + Robustness (Complete)
 
 **Milestone Goal:** Produce RAG-ready text output from academic PDFs with robust operational behavior, structured logging, and async MCP support.
 
 - [x] **Phase 8: Robustness** - Structured logging, environment validation, work directory management, timeout protection
 - [x] **Phase 9: Post-Processing** - Unicode normalization, dehyphenation, line break and punctuation cleanup for RAG-ready text
-- [ ] **Phase 10: Output and MCP** - JSON metadata, CLI text extraction, async MCP job handling
+- [x] **Phase 10: Output and MCP** - JSON metadata, CLI text extraction, async MCP job handling
 
 ## Phase Details
 
@@ -69,8 +69,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 10-01-PLAN.md — JSON metadata files, --extract-text, --json CLI flags
-- [ ] 10-02-PLAN.md — MCP async job handling (ocr_async/ocr_status) and progress reporting
+- [x] 10-01-PLAN.md — JSON metadata files, --extract-text, --json CLI flags
+- [x] 10-02-PLAN.md — MCP async job handling (ocr_async/ocr_status) and progress reporting
 
 ## Progress
 
@@ -80,4 +80,4 @@ Plans:
 |-------|-----------|----------------|--------|-----------|
 | 8. Robustness | v2.0 | 4/4 | ✓ Complete | 2026-02-02 |
 | 9. Post-Processing | v2.0 | 2/2 | ✓ Complete | 2026-02-02 |
-| 10. Output and MCP | v2.0 | 0/2 | Planned | - |
+| 10. Output and MCP | v2.0 | 2/2 | ✓ Complete | 2026-02-02 |

@@ -28,11 +28,11 @@
 
 ### Output
 
-- [ ] **OUTP-01**: JSON metadata file written alongside output PDF (quality scores per page, surya fallback pages, processing stats)
-- [ ] **OUTP-02**: `--extract-text` CLI flag triggers post-processing pipeline and writes .txt alongside output
-- [ ] **OUTP-03**: MCP async job handling — long OCR runs return job ID immediately, `ocr_status(job_id)` endpoint for checking progress
-- [ ] **OUTP-04**: MCP progress events emitted during processing (pages completed, current file)
-- [ ] **OUTP-05**: `--json` CLI flag outputs structured JSON results to stdout
+- [x] **OUTP-01**: JSON metadata file written alongside output PDF (quality scores per page, surya fallback pages, processing stats)
+- [x] **OUTP-02**: `--extract-text` CLI flag triggers post-processing pipeline and writes .txt alongside output
+- [x] **OUTP-03**: MCP async job handling — long OCR runs return job ID immediately, `ocr_status(job_id)` endpoint for checking progress
+- [x] **OUTP-04**: MCP progress events emitted during processing (pages completed, current file)
+- [x] **OUTP-05**: `--json` CLI flag outputs structured JSON results to stdout
 
 ## v3.0 Requirements
 
@@ -82,11 +82,11 @@
 | ROBU-06 | Phase 8 | Complete |
 | ROBU-07 | Phase 8 | Complete |
 | ROBU-08 | Phase 8 | Complete |
-| OUTP-01 | Phase 10 | Pending |
-| OUTP-02 | Phase 10 | Pending |
-| OUTP-03 | Phase 10 | Pending |
-| OUTP-04 | Phase 10 | Pending |
-| OUTP-05 | Phase 10 | Pending |
+| OUTP-01 | Phase 10 | Complete |
+| OUTP-02 | Phase 10 | Complete |
+| OUTP-03 | Phase 10 | Complete |
+| OUTP-04 | Phase 10 | Complete |
+| OUTP-05 | Phase 10 | Complete |
 
 **Coverage:**
 - v2.0 requirements: 20 total
