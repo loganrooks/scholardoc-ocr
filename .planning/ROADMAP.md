@@ -46,10 +46,14 @@ See .planning/milestones/v2.0-ROADMAP.md for v2.0 details. 3 phases, 8 plans, 20
   6. Surya model load time and inference time appear in phase_timings
   7. Top-level engine field is "mixed" when some pages used Surya, "surya" when all did
   8. Quality scores are re-evaluated after Surya processing (both scores preserved if fallback occurred)
-**Plans**: TBD
+**Plans**: 5 plans
 
 Plans:
-- [ ] 11-01: TBD
+- [ ] 11-01-PLAN.md — Benchmark infrastructure (dependencies, timing module, fixtures)
+- [ ] 11-02-PLAN.md — Benchmark tests (model loading, inference, memory)
+- [ ] 11-03-PLAN.md — OCREngine.MIXED enum and compute_engine_from_pages
+- [ ] 11-04-PLAN.md — Pipeline fixes (Surya timing, engine field, quality re-eval)
+- [ ] 11-05-PLAN.md — CI workflow for regression detection
 
 ### Phase 12: Device Configuration
 **Goal**: Enable explicit MPS device selection with validation and fallback for Apple Silicon GPU acceleration.
@@ -101,7 +105,7 @@ Plans:
 |-------|-----------|----------------|--------|-----------|
 | 1-7 | v1.0 | 17/17 | Complete | 2026-02-02 |
 | 8-10 | v2.0 | 8/8 | Complete | 2026-02-02 |
-| 11. Benchmarking Foundation | v2.1 | 0/? | Not started | - |
+| 11. Benchmarking Foundation | v2.1 | 0/5 | Planned | - |
 | 12. Device Configuration | v2.1 | 0/? | Not started | - |
 | 13. Model Caching | v2.1 | 0/? | Not started | - |
 | 14. Cross-File Batching | v2.1 | 0/? | Not started | - |
