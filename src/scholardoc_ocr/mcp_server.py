@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
+import uuid
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
@@ -22,6 +25,163 @@ def _log(msg: str) -> None:
 logger = logging.getLogger(__name__)
 
 mcp = FastMCP("scholardoc-ocr")
+
+
+# ---------------------------------------------------------------------------
+# Async job infrastructure
+# ---------------------------------------------------------------------------
+
+_JOB_TTL_SECONDS = 3600  # 1 hour
+
+
+@dataclass
+class JobState:
+    """Tracks an async OCR job."""
+
+    job_id: str
+    status: str = "running"  # running | completed | failed
+    progress: dict = field(default_factory=dict)
+    result: dict | None = None
+    error: str | None = None
+    created_at: float = field(default_factory=time.time)
+
+
+_jobs: dict[str, JobState] = {}
+
+
+def _cleanup_expired_jobs() -> None:
+    """Remove completed/failed jobs older than TTL to prevent memory leaks."""
+    now = time.time()
+    expired = [
+        jid
+        for jid, job in _jobs.items()
+        if job.status in ("completed", "failed")
+        and (now - job.created_at) > _JOB_TTL_SECONDS
+    ]
+    for jid in expired:
+        del _jobs[jid]
+
+
+class _JobProgressCallback:
+    """Callback that updates a JobState's progress dict."""
+
+    def __init__(self, job: JobState) -> None:
+        self._job = job
+
+    def on_progress(self, event) -> None:
+        self._job.progress = {
+            "phase": event.phase,
+            "current": event.current,
+            "total": event.total,
+            "filename": event.filename,
+        }
+
+    def on_phase(self, event) -> None:
+        self._job.progress["phase"] = event.phase
+        self._job.progress["phase_status"] = event.status
+
+    def on_model(self, event) -> None:
+        self._job.progress["model"] = event.model_name
+        self._job.progress["model_status"] = event.status
+
+
+async def _run_job(job: JobState, config) -> None:
+    """Background task that runs the pipeline and updates job state."""
+    try:
+        from .pipeline import run_pipeline
+
+        callback = _JobProgressCallback(job)
+        batch = await asyncio.to_thread(run_pipeline, config, callback)
+        job.status = "completed"
+        job.result = batch.to_dict(include_text=False)
+    except Exception as e:
+        job.status = "failed"
+        job.error = str(e)
+
+
+@mcp.tool()
+async def ocr_async(
+    input_path: str,
+    quality_threshold: float = 0.85,
+    force_surya: bool = False,
+    max_workers: int = 4,
+    extract_text: bool = False,
+) -> dict:
+    """Start a long-running OCR job asynchronously.
+
+    Returns a job_id immediately without blocking. Use ocr_status(job_id) to
+    poll for progress and retrieve results when complete. Preferred for large
+    files or batches that may take 10+ minutes.
+
+    Args:
+        input_path: Path to a PDF file or directory containing PDFs. Supports ~ expansion.
+        quality_threshold: Quality score threshold (0-1) for Surya fallback. Default 0.85.
+        force_surya: Force Surya OCR on all pages, skipping Tesseract.
+        max_workers: Maximum parallel Tesseract workers.
+        extract_text: If true, keep extracted .txt files alongside output PDFs.
+    """
+    from .pipeline import PipelineConfig
+
+    _cleanup_expired_jobs()
+
+    if not input_path or not input_path.strip():
+        return {"error": f"input_path is empty or blank. Received: {input_path!r}"}
+
+    resolved = Path(input_path).expanduser().resolve()
+    if not resolved.exists():
+        return {"error": f"Path does not exist: {resolved}"}
+
+    if resolved.is_file():
+        input_dir = resolved.parent
+        output_dir = resolved.parent / "scholardoc_ocr"
+        files = [resolved.name]
+    else:
+        input_dir = resolved
+        output_dir = resolved / "scholardoc_ocr"
+        files = []
+
+    config = PipelineConfig(
+        input_dir=input_dir,
+        output_dir=output_dir,
+        quality_threshold=quality_threshold,
+        force_surya=force_surya,
+        max_workers=max_workers,
+        extract_text=extract_text,
+    )
+    if files:
+        config.files = files
+
+    job = JobState(job_id=str(uuid.uuid4()))
+    _jobs[job.job_id] = job
+    asyncio.create_task(_run_job(job, config))
+
+    _log(f"ocr_async started job={job.job_id} input={resolved}")
+    return {"job_id": job.job_id, "status": "running"}
+
+
+@mcp.tool()
+async def ocr_status(job_id: str) -> dict:
+    """Check the status of an async OCR job.
+
+    Args:
+        job_id: The job ID returned by ocr_async().
+
+    Returns a dict with job_id, status, progress, result (when complete),
+    and error (if failed).
+    """
+    _cleanup_expired_jobs()
+
+    job = _jobs.get(job_id)
+    if job is None:
+        return {"error": f"Unknown job: {job_id}"}
+
+    return {
+        "job_id": job.job_id,
+        "status": job.status,
+        "progress": job.progress,
+        "result": job.result,
+        "error": job.error,
+    }
 
 
 @mcp.tool()
