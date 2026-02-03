@@ -66,11 +66,11 @@ Plans:
   2. `ocr --extract-text` produces a post-processed .txt file alongside the searchable PDF
   3. `ocr --json` outputs structured JSON results to stdout
   4. MCP `ocr_async()` returns a job ID immediately; `ocr_status(job_id)` reports progress and retrieves results when done
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 10-01: TBD
-- [ ] 10-02: TBD
+- [ ] 10-01-PLAN.md — JSON metadata files, --extract-text, --json CLI flags
+- [ ] 10-02-PLAN.md — MCP async job handling (ocr_async/ocr_status) and progress reporting
 
 ## Progress
 
@@ -80,4 +80,4 @@ Plans:
 |-------|-----------|----------------|--------|-----------|
 | 8. Robustness | v2.0 | 4/4 | ✓ Complete | 2026-02-02 |
 | 9. Post-Processing | v2.0 | 2/2 | ✓ Complete | 2026-02-02 |
-| 10. Output and MCP | v2.0 | 0/TBD | Not started | - |
+| 10. Output and MCP | v2.0 | 0/2 | Planned | - |
