@@ -231,6 +231,17 @@ Examples:
         help="Comma-separated ISO 639-1 language codes (default: en,fr,el,la,de)",
     )
     parser.add_argument(
+        "--keep-intermediates",
+        action="store_true",
+        help="Keep work directory for debugging",
+    )
+    parser.add_argument(
+        "--timeout",
+        type=int,
+        default=1800,
+        help="Per-file timeout in seconds (default: 1800)",
+    )
+    parser.add_argument(
         "--no-color",
         action="store_true",
         help="Disable colored output",
@@ -270,6 +281,21 @@ Examples:
     except ValueError as e:
         console.print(f"[red]Error:[/red] {e}")
         sys.exit(1)
+
+    # Environment validation
+    from .environment import EnvironmentError as EnvError
+    from .environment import log_startup_diagnostics, validate_environment
+
+    try:
+        validate_environment(langs_tesseract=langs_tesseract)
+    except EnvError as e:
+        console.print("[red]Environment check failed:[/red]")
+        for problem in e.problems:
+            console.print(f"  [red]\u2022[/red] {problem}")
+        sys.exit(1)
+
+    if args.verbose:
+        log_startup_diagnostics(langs_tesseract=langs_tesseract)
 
     # Find PDFs to process
     if args.files:
@@ -313,6 +339,8 @@ Examples:
         files=pdf_files,
         langs_tesseract=langs_tesseract,
         langs_surya=langs_surya,
+        keep_intermediates=args.keep_intermediates,
+        timeout=args.timeout,
     )
 
     callback = RichCallback(console)
