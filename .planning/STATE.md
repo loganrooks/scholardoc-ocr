@@ -31,6 +31,7 @@ None.
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
 | 001 | Remove brittle PATH hacks, document MCP env config | 2026-02-02 | d04dbdd | [001-remove-brittle-path-hacks](./quick/001-remove-brittle-path-hacks/) |
+| 002 | Fix MCP tool descriptions and add log rotation | 2026-02-03 | e042cda | [002-fix-mcp-tool-issues](./quick/002-fix-mcp-tool-issues/) |
 
 ### Blockers/Concerns
 
@@ -39,5 +40,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-03
-Stopped at: v2.0 milestone completed and archived
+Stopped at: Quick task 002 completed
 Resume file: None
