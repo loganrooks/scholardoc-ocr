@@ -30,13 +30,26 @@ Requirements for v2.1 Performance milestone — Surya optimization for Apple Sil
 - [ ] **MODEL-04**: Warm model pool pre-loads models on MCP server startup
 - [ ] **MODEL-05**: Memory profiling integration tracks VRAM usage during processing
 
-### Benchmarking
+### Benchmarking & Metrics
 
 - [ ] **BENCH-01**: Baseline performance measurement infrastructure with pytest-benchmark
 - [ ] **BENCH-02**: Correct timing methodology using torch.mps.synchronize()
 - [ ] **BENCH-03**: Regression detection integrated into CI pipeline
 - [ ] **BENCH-04**: Memory profiling with memray for leak detection
 - [ ] **BENCH-05**: Hardware-specific benchmark profiles for M1/M2/M3 variants
+- [ ] **BENCH-06**: Surya processing time captured in phase_timings (model load + inference)
+- [ ] **BENCH-07**: Top-level engine field reflects actual processing (mixed/tesseract/surya)
+- [ ] **BENCH-08**: Quality scores re-evaluated after Surya processing
+
+## v2.2 Requirements
+
+Deferred bugs/improvements discovered during v2.1 planning. Not blocking performance work.
+
+### MCP Usability
+
+- **MCP-01**: `output_name` parameter actually renames output file
+- **MCP-02**: JSON metadata file produced consistently on every run
+- **MCP-03**: Investigate/document why Tesseract runs with `force_surya=true`
 
 ## v3.0 Requirements
 
@@ -76,31 +89,34 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DEV-01 | TBD | Pending |
-| DEV-02 | TBD | Pending |
-| DEV-03 | TBD | Pending |
-| DEV-04 | TBD | Pending |
-| BATCH-01 | TBD | Pending |
-| BATCH-02 | TBD | Pending |
-| BATCH-03 | TBD | Pending |
-| BATCH-04 | TBD | Pending |
-| BATCH-05 | TBD | Pending |
-| MODEL-01 | TBD | Pending |
-| MODEL-02 | TBD | Pending |
-| MODEL-03 | TBD | Pending |
-| MODEL-04 | TBD | Pending |
-| MODEL-05 | TBD | Pending |
-| BENCH-01 | TBD | Pending |
-| BENCH-02 | TBD | Pending |
-| BENCH-03 | TBD | Pending |
-| BENCH-04 | TBD | Pending |
-| BENCH-05 | TBD | Pending |
+| DEV-01 | Phase 12 | Pending |
+| DEV-02 | Phase 12 | Pending |
+| DEV-03 | Phase 12 | Pending |
+| DEV-04 | Phase 12 | Pending |
+| BATCH-01 | Phase 14 | Pending |
+| BATCH-02 | Phase 14 | Pending |
+| BATCH-03 | Phase 14 | Pending |
+| BATCH-04 | Phase 14 | Pending |
+| BATCH-05 | Phase 14 | Pending |
+| MODEL-01 | Phase 13 | Pending |
+| MODEL-02 | Phase 13 | Pending |
+| MODEL-03 | Phase 13 | Pending |
+| MODEL-04 | Phase 13 | Pending |
+| MODEL-05 | Phase 13 | Pending |
+| BENCH-01 | Phase 11 | Pending |
+| BENCH-02 | Phase 11 | Pending |
+| BENCH-03 | Phase 11 | Pending |
+| BENCH-04 | Phase 11 | Pending |
+| BENCH-05 | Phase 11 | Pending |
+| BENCH-06 | Phase 11 | Pending |
+| BENCH-07 | Phase 11 | Pending |
+| BENCH-08 | Phase 11 | Pending |
 
 **Coverage:**
-- v2.1 requirements: 19 total
-- Mapped to phases: 0
-- Unmapped: 19 ⚠️
+- v2.1 requirements: 22 total
+- Mapped to phases: 22
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-02-03*
-*Last updated: 2026-02-03 after initial definition*
+*Last updated: 2026-02-03 after roadmap creation*
