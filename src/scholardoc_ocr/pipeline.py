@@ -52,6 +52,7 @@ def _tesseract_worker(
     This is a top-level function accepting only picklable args.
     It must NOT import surya.
     """
+    from .postprocess import postprocess
     from .processor import PDFProcessor
     from .quality import QualityAnalyzer
     from .tesseract import TesseractConfig, run_ocr
@@ -91,7 +92,7 @@ def _tesseract_worker(
 
         # If existing text is good enough and not forced, use as-is
         if not force_tesseract and not bad_pages:
-            full_text = "\n\n".join(page_texts)
+            full_text = postprocess("\n\n".join(page_texts))
             text_path = final_dir / f"{input_path.stem}.txt"
             text_path.write_text(full_text, encoding="utf-8")
             pdf_path = final_dir / f"{input_path.stem}.pdf"
@@ -161,7 +162,7 @@ def _tesseract_worker(
         bad_after_tess = [i for i, r in enumerate(tess_page_results) if r.flagged]
 
         # Write Tesseract output
-        full_text = "\n\n".join(tess_page_texts)
+        full_text = postprocess("\n\n".join(tess_page_texts))
         text_path = final_dir / f"{input_path.stem}.txt"
         text_path.write_text(full_text, encoding="utf-8")
         pdf_path = final_dir / f"{input_path.stem}.pdf"
@@ -220,6 +221,7 @@ def run_pipeline(
     """
     from . import surya
     from .logging_ import setup_main_logging, stop_logging, worker_log_initializer
+    from .postprocess import postprocess as _postprocess
 
     cb: PipelineCallback = callback or LoggingCallback()
     pipeline_start = time.time()
@@ -428,7 +430,7 @@ def run_pipeline(
                                     page_texts[page_num] = ""
 
                         text_path.write_text(
-                            "\n\n".join(page_texts), encoding="utf-8"
+                            _postprocess("\n\n".join(page_texts)), encoding="utf-8"
                         )
 
                     # Update PageResult entries for enhanced pages
