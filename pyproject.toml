@@ -1,6 +1,6 @@
 [project]
 name = "scholardoc-ocr"
-version = "0.1.0"
+version = "0.2.0"
 description = "High-performance OCR pipeline for academic texts, optimized for Apple Silicon"
 readme = "README.md"
 requires-python = ">=3.11,<3.14"
