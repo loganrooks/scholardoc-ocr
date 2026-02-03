@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-02-03)
 ## Current Position
 
 Phase: 11 of 14 (Benchmarking Foundation)
-Plan: 03 of 6 complete
+Plan: 01, 03 of 6 complete
 Status: In progress
-Last activity: 2026-02-03 — Completed 11-03-PLAN.md (OCREngine.MIXED)
+Last activity: 2026-02-03 — Completed 11-01-PLAN.md (Benchmark Infrastructure)
 
-Progress: v1.0 [##########] | v2.0 [##########] | v2.1 [#         ] 10%
+Progress: v1.0 [##########] | v2.0 [##########] | v2.1 [##        ] 17%
 
 ## Performance Metrics
 
@@ -27,7 +27,7 @@ Progress: v1.0 [##########] | v2.0 [##########] | v2.1 [#         ] 10%
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 11. Benchmarking | 1/6 | 5min | 5min |
+| 11. Benchmarking | 2/6 | 8min | 4min |
 | 12. Device Config | - | - | - |
 | 13. Model Caching | - | - | - |
 | 14. Batching | - | - | - |
@@ -45,6 +45,8 @@ Recent decisions affecting v2.1:
 - Research-driven phase order: BENCH -> DEV -> MODEL -> BATCH (from research findings)
 - MIXED enum ordering: Placed between EXISTING and NONE for semantic ordering (active engines first)
 - Engine aggregation: compute_engine_from_pages() ignores NONE pages when computing aggregate
+- Lazy torch imports: Avoid loading ML dependencies at module import time
+- Session-scoped fixtures: Share loaded models across entire benchmark test session
 
 ### Pending Todos
 
@@ -64,5 +66,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-03
-Stopped at: Completed 11-03-PLAN.md (OCREngine.MIXED)
+Stopped at: Completed 11-01-PLAN.md (Benchmark Infrastructure)
 Resume file: None
