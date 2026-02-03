@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-03)
 
 **Core value:** Produce accurate OCR text from scanned academic PDFs with minimal manual intervention, using quality-gated fallback to avoid expensive neural OCR unless needed.
-**Current focus:** Planning next milestone
+**Current focus:** v2.1 Performance — Surya optimization for Apple Silicon
 
 ## Current Position
 
-Phase: None — between milestones
-Plan: N/A
-Status: Ready for next milestone
-Last activity: 2026-02-03 — Completed quick task 002: Fix MCP tool issues
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-02-03 — Milestone v2.1 started
 
-Progress: v1.0 ✓ | v2.0 ✓ | v3.0 planning
+Progress: v1.0 ✓ | v2.0 ✓ | v2.1 active
 
 ## Accumulated Context
 

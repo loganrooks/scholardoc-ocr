@@ -55,7 +55,14 @@ Produce accurate OCR text from scanned academic PDFs with minimal manual interve
 
 ### Active
 
-(No active requirements — define with `/gsd:new-milestone`)
+**v2.1 Performance — Surya optimization for Apple Silicon**
+
+- [ ] Explicit MPS device selection for Apple Silicon GPU acceleration
+- [ ] Cross-file page batching (collect flagged pages across files, process as one batch)
+- [ ] Improved Surya parallelization and resource utilization
+- [ ] Memory optimization to reduce peak usage during Surya processing
+- [ ] Model caching to persist loaded models across MCP calls
+- [ ] Benchmarking infrastructure to measure and validate improvements
 
 ### Out of Scope
 
@@ -88,6 +95,8 @@ Layered architecture:
 
 v3.0 candidates: dictionary-based spell correction, config file support, image preprocessing, per-region quality scoring, n-gram perplexity scoring, layout consistency checks, configurable domain dictionaries.
 
+**v2.1 focus:** Surya performance on Apple Silicon — the neural OCR fallback is correct but slow. Cross-file batching, MPS acceleration, and model caching should dramatically improve throughput for multi-file jobs.
+
 ## Key Decisions
 
 | Decision | Rationale | Outcome |
@@ -114,4 +123,4 @@ v3.0 candidates: dictionary-based spell correction, config file support, image p
 - **Tesseract-first**: Two-phase architecture is core value
 
 ---
-*Last updated: 2026-02-03 after v2.0 milestone*
+*Last updated: 2026-02-03 after v2.1 milestone start*
