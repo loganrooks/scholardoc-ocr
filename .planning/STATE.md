@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-02-03)
 ## Current Position
 
 Phase: 11 of 14 (Benchmarking Foundation)
-Plan: 01, 02, 03, 04 of 6 complete
+Plan: 01, 02, 03, 04, 05 of 6 complete
 Status: In progress
-Last activity: 2026-02-03 - Completed 11-04-PLAN.md (Metrics Fixes)
+Last activity: 2026-02-03 - Completed 11-05-PLAN.md (Benchmark CI Workflow)
 
-Progress: v1.0 [##########] | v2.0 [##########] | v2.1 [####      ] 33%
+Progress: v1.0 [##########] | v2.0 [##########] | v2.1 [#####     ] 42%
 
 ## Performance Metrics
 
@@ -27,7 +27,7 @@ Progress: v1.0 [##########] | v2.0 [##########] | v2.1 [####      ] 33%
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 11. Benchmarking | 4/6 | 16min | 4min |
+| 11. Benchmarking | 5/6 | 17min | 3.4min |
 | 12. Device Config | - | - | - |
 | 13. Model Caching | - | - | - |
 | 14. Batching | - | - | - |
@@ -51,6 +51,8 @@ Recent decisions affecting v2.1:
 - Hardware profile grouping: benchmark-group-by=param:hardware_profile,func for BENCH-05 baselines
 - MPS sync for Surya timing: Always call mps_sync() before measuring GPU operation duration
 - Per-file timing keys: Store surya_model_load and surya_inference in phase_timings dict
+- CI benchmark threshold: 150% alert threshold (fail on 50%+ regression)
+- macos-14 runner: Apple Silicon for MPS benchmark parity with local dev
 
 ### Pending Todos
 
@@ -70,5 +72,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-03
-Stopped at: Completed 11-04-PLAN.md (Metrics Fixes)
+Stopped at: Completed 11-05-PLAN.md (Benchmark CI Workflow)
 Resume file: None
