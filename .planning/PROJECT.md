@@ -35,26 +35,27 @@ Produce accurate OCR text from scanned academic PDFs with minimal manual interve
 - ✓ Dead code removed, type annotations fixed — v1.0
 - ✓ Comprehensive test suite (quality, backends, pipeline, integration) — v1.0
 
+- ✓ Dehyphenation with language-aware edge cases (German compounds, French names) — v2.0
+- ✓ Line break normalization (paragraph detection) — v2.0
+- ✓ Unicode normalization (NFC, ligatures, soft hyphens) — v2.0
+- ✓ Punctuation normalization — v2.0
+- ✓ `--extract-text` flag triggering post-processing pipeline — v2.0
+- ✓ RAG-ready .txt output alongside searchable PDF — v2.0
+- ✓ Structured multiprocess logging (QueueHandler/QueueListener) — v2.0
+- ✓ Full traceback capture in all error paths — v2.0
+- ✓ Environment validation on startup (tesseract, langs, TMPDIR) — v2.0
+- ✓ Work directory cleanup (`--keep-intermediates` to override) — v2.0
+- ✓ Worker timeout protection — v2.0
+- ✓ Per-worker log files with PID prefix — v2.0
+- ✓ Startup diagnostic report — v2.0
+- ✓ JSON metadata sidecar files — v2.0
+- ✓ `--json` CLI flag for structured stdout output — v2.0
+- ✓ MCP async job handling (ocr_async/ocr_status) — v2.0
+- ✓ MCP progress events — v2.0
+
 ### Active
 
-**Post-Processing Pipeline (RAG quality):**
-- [ ] Dehyphenation with dictionary-aware edge cases
-- [ ] Line break normalization (paragraph detection)
-- [ ] Unicode normalization (ligatures, combining chars, soft hyphens)
-- [ ] Punctuation normalization
-- [ ] `--extract-text` flag triggering post-processing pipeline
-- [ ] RAG-ready .txt output alongside searchable PDF
-
-**Robustness & Debugging:**
-- [ ] Structured logging for worker processes (QueueHandler/QueueListener)
-- [ ] Detailed error capture (full tracebacks, structured format)
-- [ ] Environment validation on startup (tesseract binary, langs, TMPDIR)
-- [ ] Work directory cleanup on success (`--keep-intermediates` to override)
-
-**MCP/API Improvements:**
-- [ ] MCP timeout handling (async job with status checking)
-- [ ] Structured JSON results from MCP tool
-- [ ] Quality scores in JSON metadata alongside output
+(No active requirements — define with `/gsd:new-milestone`)
 
 ### Out of Scope
 
@@ -71,19 +72,19 @@ Produce accurate OCR text from scanned academic PDFs with minimal manual interve
 
 ## Context
 
-Shipped v1.0 with 3,731 LOC Python (2,348 library + 1,383 tests).
+Shipped v2.0 with 4,860 LOC Python (3,078 library + 1,782 tests).
 Tech stack: ocrmypdf, PyMuPDF, marker-pdf, pytesseract, Rich, FastMCP.
 Build: hatchling. Lint: ruff. Python >=3.11, <3.14.
 
-Complete rearchitecture from original 4-module monolith into clean layered architecture:
+Layered architecture:
 - types.py, callbacks.py, exceptions.py (foundation)
 - quality.py, dictionary.py, confidence.py (quality analysis)
 - tesseract.py, surya.py, processor.py (backends)
+- postprocess.py (text transforms)
+- logging_.py, environment.py (robustness)
 - pipeline.py (orchestration)
 - cli.py (presentation)
 - mcp_server.py (MCP integration)
-
-v2.0 milestone: Post-processing pipeline for RAG-ready output + robustness/debugging improvements + MCP API enhancements. Motivated by real-world usage revealing OCR artifacts that hurt retrieval quality (dehyphenation, line breaks, unicode) and operational pain points (swallowed errors, MCP timeouts, environment issues).
 
 v3.0 candidates: dictionary-based spell correction, config file support, image preprocessing, per-region quality scoring, n-gram perplexity scoring, layout consistency checks, configurable domain dictionaries.
 
@@ -99,6 +100,9 @@ v3.0 candidates: dictionary-based spell correction, config file support, image p
 | Function module pattern for OCR backends | Simpler than classes for stateless operations | ✓ Good |
 | Lazy Surya imports | Avoid loading torch/ML models at startup | ✓ Good — fast CLI/MCP startup |
 | Composite weights 0.4/0.3/0.3 | Garbled regex most reliable signal | — Pending real-world validation |
+| QueueHandler/QueueListener for logging | fork+logging broken on macOS | ✓ Good — workers log reliably |
+| dehyphenate before join_paragraphs | Hyphen-newline pattern needs raw newlines | ✓ Good |
+| Pipeline .txt files for MCP extract_text | Re-extraction loses post-processing | ✓ Good — preserves transforms |
 
 ## Constraints
 
@@ -110,4 +114,4 @@ v3.0 candidates: dictionary-based spell correction, config file support, image p
 - **Tesseract-first**: Two-phase architecture is core value
 
 ---
-*Last updated: 2026-02-02 after v2.0 milestone start*
+*Last updated: 2026-02-03 after v2.0 milestone*
