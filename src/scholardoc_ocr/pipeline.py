@@ -420,22 +420,33 @@ def run_pipeline(
                         bad_indices,
                     )
 
-                    # Convert with Surya
+                    # Convert with Surya (with GPU-to-CPU fallback)
                     from .surya import SuryaConfig
 
                     surya_cfg = SuryaConfig(langs=config.langs_surya)
                     t_inference = time.time()
-                    surya_markdown = surya.convert_pdf(
+                    surya_markdown, fallback_occurred = surya.convert_pdf_with_fallback(
                         input_path,
                         model_dict,
                         config=surya_cfg,
                         page_range=bad_indices,
+                        strict_gpu=config.strict_gpu,
                     )
                     mps_sync()  # Ensure GPU work completes before timing
                     surya_inference_time = time.time() - t_inference
 
                     # Update phase_timings for this file
                     file_result.phase_timings["surya_inference"] = surya_inference_time
+
+                    # Track fallback in results for transparency
+                    if fallback_occurred:
+                        logger.warning(
+                            "%s: GPU fallback occurred, processed on CPU",
+                            file_result.filename,
+                        )
+                        # Update device_used to reflect actual device
+                        file_result.device_used = "cpu"
+                        file_result.phase_timings["surya_fallback"] = True
 
                     # Write Surya text back to output .txt file
                     text_path = config.output_dir / "final" / f"{input_path.stem}.txt"
