@@ -41,6 +41,7 @@ class PipelineConfig:
     quality_threshold: float = 0.85
     force_tesseract: bool = False
     force_surya: bool = False
+    strict_gpu: bool = False
     debug: bool = False
     max_samples: int = 20
     max_workers: int = 4

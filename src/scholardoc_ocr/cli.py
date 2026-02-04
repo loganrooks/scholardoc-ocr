@@ -46,9 +46,7 @@ class RichCallback:
                     console=self._console,
                 )
                 self._progress.start()
-                self._task_id = self._progress.add_task(
-                    f"{event.phase}", total=event.files_count
-                )
+                self._task_id = self._progress.add_task(f"{event.phase}", total=event.files_count)
             elif event.status == "completed":
                 if self._progress is not None:
                     self._progress.stop()
@@ -62,9 +60,7 @@ class RichCallback:
         try:
             if self._progress is not None and self._task_id is not None:
                 desc = f"{event.phase}: {event.filename or ''}"
-                self._progress.update(
-                    self._task_id, completed=event.current, description=desc
-                )
+                self._progress.update(self._task_id, completed=event.current, description=desc)
         except Exception:
             print(f"{event.phase}: {event.current}/{event.total} {event.filename or ''}")
 
@@ -72,13 +68,10 @@ class RichCallback:
         """Display model loading status."""
         try:
             if event.status == "loading":
-                self._console.print(
-                    f"[yellow]Loading {event.model_name} models...[/]"
-                )
+                self._console.print(f"[yellow]Loading {event.model_name} models...[/]")
             elif event.status == "loaded":
                 self._console.print(
-                    f"[green]{event.model_name} models loaded"
-                    f" ({event.time_seconds:.1f}s)[/]"
+                    f"[green]{event.model_name} models loaded ({event.time_seconds:.1f}s)[/]"
                 )
         except Exception:
             msg = f"Model {event.model_name}: {event.status}"
@@ -174,11 +167,13 @@ Examples:
         help="Input directory containing PDFs (default: current directory)",
     )
     parser.add_argument(
-        "-o", "--output-dir",
+        "-o",
+        "--output-dir",
         help="Output directory (default: <input_dir>/ocr_output)",
     )
     parser.add_argument(
-        "-q", "--quality",
+        "-q",
+        "--quality",
         type=float,
         default=0.85,
         help="Quality threshold 0-1 (default: 0.85). Below this, flag for Surya.",
@@ -194,39 +189,50 @@ Examples:
         help="Force Surya OCR on all pages regardless of quality.",
     )
     parser.add_argument(
+        "--strict-gpu",
+        action="store_true",
+        help="Fail if GPU (MPS/CUDA) unavailable instead of falling back to CPU.",
+    )
+    parser.add_argument(
         "--debug",
         action="store_true",
         help="Show detailed quality analysis with sample problem text.",
     )
     parser.add_argument(
-        "-s", "--samples",
+        "-s",
+        "--samples",
         type=int,
         default=20,
         help="Number of problem samples to show in debug mode (default: 20)",
     )
     parser.add_argument(
-        "-w", "--workers",
+        "-w",
+        "--workers",
         type=int,
         default=mp.cpu_count(),
         help=f"Parallel workers (default: {mp.cpu_count()})",
     )
     parser.add_argument(
-        "-f", "--files",
+        "-f",
+        "--files",
         nargs="+",
         help="Specific PDF files to process (instead of all PDFs in input_dir)",
     )
     parser.add_argument(
-        "-r", "--recursive",
+        "-r",
+        "--recursive",
         action="store_true",
         help="Recursively search subdirectories for PDFs",
     )
     parser.add_argument(
-        "-v", "--verbose",
+        "-v",
+        "--verbose",
         action="store_true",
         help="Verbose logging",
     )
     parser.add_argument(
-        "-l", "--language",
+        "-l",
+        "--language",
         default="en,fr,el,la,de",
         help="Comma-separated ISO 639-1 language codes (default: en,fr,el,la,de)",
     )
@@ -307,6 +313,10 @@ Examples:
 
     if args.verbose:
         log_startup_diagnostics(langs_tesseract=langs_tesseract)
+        from .environment import check_gpu_availability
+
+        gpu_available, gpu_message = check_gpu_availability()
+        console.print(f"[dim]GPU: {gpu_message}[/dim]")
 
     # Find PDFs to process
     if args.files:
@@ -344,6 +354,7 @@ Examples:
         quality_threshold=args.quality,
         force_tesseract=args.force,
         force_surya=args.force_surya,
+        strict_gpu=args.strict_gpu,
         debug=args.debug,
         max_samples=args.samples,
         max_workers=args.workers,
