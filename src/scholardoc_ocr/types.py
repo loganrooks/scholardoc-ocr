@@ -141,6 +141,7 @@ class FileResult:
     time_seconds: float = 0.0
     phase_timings: dict[str, float] = field(default_factory=dict)
     output_path: str | None = None
+    device_used: str | None = None  # Device that processed this file (cuda/mps/cpu)
 
     @property
     def flagged_pages(self) -> list[PageResult]:
@@ -168,6 +169,8 @@ class FileResult:
             d["error"] = self.error
         if self.output_path is not None:
             d["output_path"] = self.output_path
+        if self.device_used is not None:
+            d["device_used"] = self.device_used
         return d
 
 
