@@ -164,3 +164,45 @@ def test_compute_engine_existing():
         ),
     ]
     assert compute_engine_from_pages(pages) == OCREngine.EXISTING
+
+
+def test_file_result_device_used_default():
+    """Verify device_used defaults to None."""
+    result = FileResult(
+        filename="test.pdf",
+        success=True,
+        engine=OCREngine.TESSERACT,
+        quality_score=0.9,
+        page_count=1,
+        pages=[],
+    )
+    assert result.device_used is None
+
+
+def test_file_result_device_used_in_to_dict():
+    """Verify device_used is serialized in to_dict() when set."""
+    result = FileResult(
+        filename="test.pdf",
+        success=True,
+        engine=OCREngine.TESSERACT,
+        quality_score=0.9,
+        page_count=1,
+        pages=[],
+        device_used="mps",
+    )
+    d = result.to_dict()
+    assert d["device_used"] == "mps"
+
+
+def test_file_result_device_used_omitted_when_none():
+    """Verify device_used is not in to_dict() when None."""
+    result = FileResult(
+        filename="test.pdf",
+        success=True,
+        engine=OCREngine.TESSERACT,
+        quality_score=0.9,
+        page_count=1,
+        pages=[],
+    )
+    d = result.to_dict()
+    assert "device_used" not in d
