@@ -43,15 +43,17 @@ def is_available() -> bool:
         return False
 
 
-def load_models(device: str | None = None) -> dict[str, Any]:
+def load_models(device: str | None = None) -> tuple[dict[str, Any], str]:
     """Load Surya/Marker models once for reuse across convert_pdf calls.
 
     Args:
         device: Optional device string (e.g. "cpu", "cuda:0"). If None,
-            uses Marker's default device selection.
+            auto-detects the best available device using detect_device().
 
     Returns:
-        Model dictionary suitable for passing to convert_pdf().
+        Tuple of (model_dict, device_used_str) where:
+        - model_dict is suitable for passing to convert_pdf()
+        - device_used_str is the actual device string used (e.g., "mps", "cuda", "cpu")
 
     Raises:
         SuryaError: If model loading fails.
@@ -64,22 +66,32 @@ def load_models(device: str | None = None) -> dict[str, Any]:
             details={"package": "marker-pdf"},
         ) from exc
 
-    logger.info("Loading Surya/Marker models...")
-    try:
-        if device is not None:
-            import torch  # noqa: PLC0415
+    # Determine the device to use
+    device_str: str
+    if device is not None:
+        # Explicit device override
+        device_str = device
+    else:
+        # Auto-detect best device
+        from .device import detect_device  # noqa: PLC0415
 
-            model_dict = create_model_dict(device=torch.device(device))
-        else:
-            model_dict = create_model_dict()
+        device_info = detect_device()
+        device_str = str(device_info.device_type)
+        logger.info("Using device: %s (%s)", device_info.device_type, device_info.device_name)
+
+    logger.info("Loading Surya/Marker models on device: %s", device_str)
+    try:
+        import torch  # noqa: PLC0415
+
+        model_dict = create_model_dict(device=torch.device(device_str))
     except Exception as exc:
         raise SuryaError(
             f"Failed to load Surya/Marker models: {exc}",
-            details={"device": device},
+            details={"device": device_str, "requested_device": device},
         ) from exc
 
-    logger.info("Surya/Marker models loaded successfully.")
-    return model_dict
+    logger.info("Surya/Marker models loaded successfully on %s.", device_str)
+    return model_dict, device_str
 
 
 def convert_pdf(
