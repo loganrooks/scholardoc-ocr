@@ -181,3 +181,72 @@ class TestFallbackBehavior:
         assert device_info.fallback_from is None or isinstance(
             device_info.fallback_from, DeviceType
         )
+
+
+class TestGPUAvailabilityCheck:
+    """Tests for check_gpu_availability function in environment.py."""
+
+    def test_check_gpu_availability_returns_tuple(self):
+        """check_gpu_availability returns tuple of (bool, str)."""
+        from scholardoc_ocr.environment import check_gpu_availability
+
+        available, message = check_gpu_availability()
+        assert isinstance(available, bool)
+        assert isinstance(message, str)
+        assert len(message) > 0
+
+    def test_check_gpu_availability_message_is_actionable(self):
+        """Message should contain useful info about GPU status."""
+        from scholardoc_ocr.environment import check_gpu_availability
+
+        available, message = check_gpu_availability()
+        # Message should contain one of these indicators
+        expected_keywords = ["CUDA", "MPS", "GPU", "CPU", "available", "not"]
+        assert any(kw.lower() in message.lower() for kw in expected_keywords)
+
+
+class TestPipelineConfigStrictGPU:
+    """Tests for strict_gpu field in PipelineConfig."""
+
+    def test_pipeline_config_has_strict_gpu(self):
+        """PipelineConfig should have strict_gpu field."""
+        from scholardoc_ocr.pipeline import PipelineConfig
+
+        config = PipelineConfig()
+        assert hasattr(config, "strict_gpu")
+        assert config.strict_gpu is False  # Default value
+
+    def test_pipeline_config_strict_gpu_can_be_set(self):
+        """strict_gpu can be set to True."""
+        from scholardoc_ocr.pipeline import PipelineConfig
+
+        config = PipelineConfig(strict_gpu=True)
+        assert config.strict_gpu is True
+
+
+class TestCLIStrictGPUFlag:
+    """Tests for --strict-gpu CLI flag."""
+
+    def test_cli_strict_gpu_flag_in_help(self):
+        """--strict-gpu flag should appear in CLI help output."""
+        import subprocess
+
+        result = subprocess.run(
+            ["ocr", "--help"],
+            capture_output=True,
+            text=True,
+        )
+        assert "--strict-gpu" in result.stdout
+
+    def test_cli_strict_gpu_help_text(self):
+        """--strict-gpu should have meaningful help text."""
+        import subprocess
+
+        result = subprocess.run(
+            ["ocr", "--help"],
+            capture_output=True,
+            text=True,
+        )
+        # Check that help text mentions GPU and CPU fallback
+        assert "GPU" in result.stdout or "gpu" in result.stdout
+        assert "CPU" in result.stdout or "cpu" in result.stdout or "fall" in result.stdout
