@@ -63,12 +63,12 @@ Plans:
   1. Pipeline explicitly uses MPS device on Apple Silicon (visible in logs: "Using device: mps")
   2. Startup validates MPS availability and shows actionable error if unavailable
   3. Processing automatically falls back to CPU when MPS fails mid-job
-  4. Detection model runs on CPU while recognition runs on MPS (workaround for MPS bugs)
+  4. MPS bugs are handled via full-CPU fallback (detection/recognition split deferred - Marker API uses unified device)
 **Plans**: 5 plans
 
 Plans:
 - [ ] 12-01-PLAN.md — Device detection infrastructure (DeviceType, DeviceInfo, detect_device)
-- [ ] 12-02-PLAN.md — Model loading with device fallback (load_models_with_fallback, device_used metadata)
+- [ ] 12-02-PLAN.md — FileResult device tracking (device_used field)
 - [ ] 12-03-PLAN.md — Surya and pipeline integration (use device detection, track device in results)
 - [ ] 12-04-PLAN.md — CLI --strict-gpu flag and startup validation (check_gpu_availability)
 - [ ] 12-05-PLAN.md — Inference-time GPU-to-CPU fallback (convert_pdf_with_fallback)
