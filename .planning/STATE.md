@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-02-03)
 ## Current Position
 
 Phase: 12 of 14 (Device Configuration)
-Plan: 2/4 complete
+Plan: 3/4 complete
 Status: In progress
-Last activity: 2026-02-04 — Completed 12-02-PLAN.md (device tracking in FileResult)
+Last activity: 2026-02-04 — Completed 12-03-PLAN.md (device integration in surya/pipeline)
 
-Progress: v1.0 [##########] | v2.0 [##########] | v2.1 [######    ] 60%
+Progress: v1.0 [##########] | v2.0 [##########] | v2.1 [#######   ] 70%
 
 ## Performance Metrics
 
@@ -28,7 +28,7 @@ Progress: v1.0 [##########] | v2.0 [##########] | v2.1 [######    ] 60%
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 11. Benchmarking | 5/5 | 17min | 3.4min |
-| 12. Device Config | 2/4 | 3min | 1.5min |
+| 12. Device Config | 3/4 | 7min | 2.3min |
 | 13. Model Caching | - | - | - |
 | 14. Batching | - | - | - |
 
@@ -54,6 +54,7 @@ Recent decisions affecting v2.1:
 - CI benchmark threshold: 150% alert threshold (fail on 50%+ regression)
 - macos-14 runner: Apple Silicon for MPS benchmark parity with local dev
 - device_used as str|None: Flexible device tracking, omit from JSON when None
+- load_models() returns tuple: (model_dict, device_str) for explicit device tracking
 
 ### Pending Todos
 
@@ -73,5 +74,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-04
-Stopped at: Completed 12-02-PLAN.md (device tracking in FileResult)
+Stopped at: Completed 12-03-PLAN.md (device integration in surya/pipeline)
 Resume file: None
