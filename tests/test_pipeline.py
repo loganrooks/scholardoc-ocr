@@ -201,7 +201,7 @@ class TestSuryaWriteback:
         text_path = final_dir / "doc.txt"
         text_path.write_text("page0\n\nBAD_PAGE\n\npage2", encoding="utf-8")
 
-        mock_load.return_value = {"model": "mock"}
+        mock_load.return_value = ({"model": "mock"}, "mps")  # Returns tuple now
         mock_convert.return_value = "SURYA_ENHANCED_TEXT"
 
         with patch(
@@ -248,7 +248,7 @@ class TestSuryaPartialFailure:
         (final_dir / "fail.txt").write_text("BAD\n\npage1", encoding="utf-8")
         (final_dir / "ok.txt").write_text("BAD\n\npage1", encoding="utf-8")
 
-        mock_load.return_value = {"model": "mock"}
+        mock_load.return_value = ({"model": "mock"}, "mps")  # Returns tuple now
         mock_convert.side_effect = [
             SuryaError("GPU OOM"),
             "SURYA_ENHANCED_TEXT",
@@ -296,7 +296,7 @@ class TestForceSurya:
         final_dir.mkdir(parents=True, exist_ok=True)
         (final_dir / "doc.txt").write_text("page0\n\npage1", encoding="utf-8")
 
-        mock_load.return_value = {"model": "mock"}
+        mock_load.return_value = ({"model": "mock"}, "mps")  # Returns tuple now
         mock_convert.return_value = "SURYA_FORCED"
 
         with patch(

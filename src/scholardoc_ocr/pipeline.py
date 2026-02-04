@@ -37,9 +37,7 @@ class PipelineConfig:
     """Pipeline configuration."""
 
     input_dir: Path = field(default_factory=lambda: Path.home() / "Downloads")
-    output_dir: Path = field(
-        default_factory=lambda: Path.home() / "Downloads" / "scholardoc_ocr"
-    )
+    output_dir: Path = field(default_factory=lambda: Path.home() / "Downloads" / "scholardoc_ocr")
     quality_threshold: float = 0.85
     force_tesseract: bool = False
     force_surya: bool = False
@@ -54,9 +52,7 @@ class PipelineConfig:
     extract_text: bool = False
 
 
-def _tesseract_worker(
-    input_path: Path, output_dir: Path, config_dict: dict
-) -> FileResult:
+def _tesseract_worker(input_path: Path, output_dir: Path, config_dict: dict) -> FileResult:
     """Process a single PDF with Tesseract in a worker process.
 
     This is a top-level function accepting only picklable args.
@@ -95,9 +91,7 @@ def _tesseract_worker(
         timings["analyze_quality"] = time.time() - t0
 
         page_qualities = [r.score for r in page_results]
-        overall_quality = (
-            sum(page_qualities) / len(page_qualities) if page_qualities else 0.0
-        )
+        overall_quality = sum(page_qualities) / len(page_qualities) if page_qualities else 0.0
         bad_pages = [i for i, r in enumerate(page_results) if r.flagged]
 
         # If existing text is good enough and not forced, use as-is
@@ -149,9 +143,7 @@ def _tesseract_worker(
                 quality_score=0.0,
                 page_count=page_count,
                 pages=[],
-                error=(
-                    tess_result.error or "Tesseract OCR failed (no details)"
-                ),
+                error=(tess_result.error or "Tesseract OCR failed (no details)"),
                 time_seconds=time.time() - start,
                 phase_timings=timings,
             )
@@ -166,9 +158,7 @@ def _tesseract_worker(
         timings["tess_analyze"] = time.time() - t0
 
         tess_qualities = [r.score for r in tess_page_results]
-        tess_overall = (
-            sum(tess_qualities) / len(tess_qualities) if tess_qualities else 0.0
-        )
+        tess_overall = sum(tess_qualities) / len(tess_qualities) if tess_qualities else 0.0
         bad_after_tess = [i for i, r in enumerate(tess_page_results) if r.flagged]
 
         # Write Tesseract output
@@ -270,7 +260,9 @@ def run_pipeline(
 
         logger.info(
             "Pipeline: %d files, %d pool workers, %d jobs/file",
-            num_files, pool_workers, jobs_per_file,
+            num_files,
+            pool_workers,
+            jobs_per_file,
         )
 
         # Prepare config dict (picklable)
@@ -285,10 +277,14 @@ def run_pipeline(
         }
 
         # --- Phase 1: Parallel Tesseract ---
-        cb.on_phase(PhaseEvent(
-            phase="tesseract", status="started",
-            files_count=num_files, pages_count=0,
-        ))
+        cb.on_phase(
+            PhaseEvent(
+                phase="tesseract",
+                status="started",
+                files_count=num_files,
+                pages_count=0,
+            )
+        )
 
         file_results: list[FileResult] = []
         completed = 0
@@ -300,9 +296,7 @@ def run_pipeline(
         ) as executor:
             future_to_path = {}
             for path in input_files:
-                future = executor.submit(
-                    _tesseract_worker, path, config.output_dir, config_dict
-                )
+                future = executor.submit(_tesseract_worker, path, config.output_dir, config_dict)
                 future_to_path[future] = path
 
             for future in as_completed(future_to_path):
@@ -311,77 +305,86 @@ def run_pipeline(
                     result = future.result(timeout=config.timeout)
                     file_results.append(result)
                     completed += 1
-                    cb.on_progress(ProgressEvent(
-                        phase="tesseract", current=completed,
-                        total=num_files, filename=result.filename,
-                    ))
+                    cb.on_progress(
+                        ProgressEvent(
+                            phase="tesseract",
+                            current=completed,
+                            total=num_files,
+                            filename=result.filename,
+                        )
+                    )
                     logger.info(
                         "%s: %s (%.1f%% quality, %.1fs)",
-                        result.filename, result.engine,
-                        result.quality_score * 100, result.time_seconds,
+                        result.filename,
+                        result.engine,
+                        result.quality_score * 100,
+                        result.time_seconds,
                     )
                 except TimeoutError:
-                    logger.error(
-                        "%s: timed out after %ds", path.name, config.timeout
+                    logger.error("%s: timed out after %ds", path.name, config.timeout)
+                    file_results.append(
+                        FileResult(
+                            filename=path.name,
+                            success=False,
+                            engine=OCREngine.NONE,
+                            quality_score=0.0,
+                            page_count=0,
+                            pages=[],
+                            error=f"Timed out after {config.timeout}s",
+                        )
                     )
-                    file_results.append(FileResult(
-                        filename=path.name,
-                        success=False,
-                        engine=OCREngine.NONE,
-                        quality_score=0.0,
-                        page_count=0,
-                        pages=[],
-                        error=f"Timed out after {config.timeout}s",
-                    ))
                 except Exception as e:
-                    logger.error(
-                        "%s: worker failed: %s", path.name, e, exc_info=True
+                    logger.error("%s: worker failed: %s", path.name, e, exc_info=True)
+                    file_results.append(
+                        FileResult(
+                            filename=path.name,
+                            success=False,
+                            engine=OCREngine.NONE,
+                            quality_score=0.0,
+                            page_count=0,
+                            pages=[],
+                            error=f"{type(e).__name__}: {e}\n{traceback.format_exc()}",
+                        )
                     )
-                    file_results.append(FileResult(
-                        filename=path.name,
-                        success=False,
-                        engine=OCREngine.NONE,
-                        quality_score=0.0,
-                        page_count=0,
-                        pages=[],
-                        error=f"{type(e).__name__}: {e}\n{traceback.format_exc()}",
-                    ))
 
-        cb.on_phase(PhaseEvent(
-            phase="tesseract", status="completed",
-            files_count=num_files, pages_count=0,
-        ))
+        cb.on_phase(
+            PhaseEvent(
+                phase="tesseract",
+                status="completed",
+                files_count=num_files,
+                pages_count=0,
+            )
+        )
 
         # --- Phase 2: Sequential per-file Surya ---
-        flagged_results = [
-            r for r in file_results
-            if config.force_surya or r.flagged_pages
-        ]
+        flagged_results = [r for r in file_results if config.force_surya or r.flagged_pages]
 
         if flagged_results:
-            total_flagged_pages = sum(
-                len(r.flagged_pages) for r in flagged_results
-            )
+            total_flagged_pages = sum(len(r.flagged_pages) for r in flagged_results)
             logger.info(
                 "Phase 2: Surya OCR — %d files, %d flagged pages",
-                len(flagged_results), total_flagged_pages,
+                len(flagged_results),
+                total_flagged_pages,
             )
 
-            cb.on_phase(PhaseEvent(
-                phase="surya", status="started",
-                files_count=len(flagged_results),
-                pages_count=total_flagged_pages,
-            ))
+            cb.on_phase(
+                PhaseEvent(
+                    phase="surya",
+                    status="started",
+                    files_count=len(flagged_results),
+                    pages_count=total_flagged_pages,
+                )
+            )
 
             # Load models once
             cb.on_model(ModelEvent(model_name="surya", status="loading"))
             t0 = time.time()
-            model_dict = surya.load_models()
+            model_dict, device_used = surya.load_models()  # Now returns tuple
             mps_sync()  # Ensure GPU work completes before timing
             surya_model_load_time = time.time() - t0
-            cb.on_model(ModelEvent(
-                model_name="surya", status="loaded", time_seconds=surya_model_load_time
-            ))
+            cb.on_model(
+                ModelEvent(model_name="surya", status="loaded", time_seconds=surya_model_load_time)
+            )
 
             surya_completed = 0
             for file_result in flagged_results:
@@ -404,16 +407,16 @@ def run_pipeline(
                     if config.force_surya:
                         bad_indices = list(range(file_result.page_count))
                     else:
-                        bad_indices = [
-                            p.page_number for p in file_result.flagged_pages
-                        ]
+                        bad_indices = [p.page_number for p in file_result.flagged_pages]
 
                     if not bad_indices:
                         continue
 
                     logger.info(
                         "%s: running Surya on %d pages %s",
-                        file_result.filename, len(bad_indices), bad_indices,
+                        file_result.filename,
+                        len(bad_indices),
+                        bad_indices,
                     )
 
                     # Convert with Surya
@@ -422,7 +425,9 @@ def run_pipeline(
                     surya_cfg = SuryaConfig(langs=config.langs_surya)
                     t_inference = time.time()
                     surya_markdown = surya.convert_pdf(
-                        input_path, model_dict, config=surya_cfg,
+                        input_path,
+                        model_dict,
+                        config=surya_cfg,
                         page_range=bad_indices,
                     )
                     mps_sync()  # Ensure GPU work completes before timing
@@ -432,9 +437,7 @@ def run_pipeline(
                     file_result.phase_timings["surya_inference"] = surya_inference_time
 
                     # Write Surya text back to output .txt file
-                    text_path = (
-                        config.output_dir / "final" / f"{input_path.stem}.txt"
-                    )
+                    text_path = config.output_dir / "final" / f"{input_path.stem}.txt"
                     if text_path.exists():
                         existing_text = text_path.read_text(encoding="utf-8")
                         page_texts = existing_text.split("\n\n")
@@ -487,27 +490,40 @@ def run_pipeline(
                                 page.status = PageStatus.GOOD
                                 page.flagged = False
 
+                    # Track which device processed this file
+                    file_result.device_used = device_used
+
                     surya_completed += 1
-                    cb.on_progress(ProgressEvent(
-                        phase="surya", current=surya_completed,
-                        total=len(flagged_results),
-                        filename=file_result.filename,
-                    ))
+                    cb.on_progress(
+                        ProgressEvent(
+                            phase="surya",
+                            current=surya_completed,
+                            total=len(flagged_results),
+                            filename=file_result.filename,
+                        )
+                    )
                     logger.info(
-                        "%s: Surya enhancement complete", file_result.filename
+                        "%s: Surya enhancement complete (device: %s)",
+                        file_result.filename,
+                        device_used,
                     )
 
                 except Exception as e:
                     logger.warning(
                         "%s: Surya failed, keeping Tesseract output: %s",
-                        file_result.filename, e, exc_info=True,
+                        file_result.filename,
+                        e,
+                        exc_info=True,
                     )
 
-            cb.on_phase(PhaseEvent(
-                phase="surya", status="completed",
-                files_count=len(flagged_results),
-                pages_count=total_flagged_pages,
-            ))
+            cb.on_phase(
+                PhaseEvent(
+                    phase="surya",
+                    status="completed",
+                    files_count=len(flagged_results),
+                    pages_count=total_flagged_pages,
+                )
+            )
 
             # Store model load time in all files that used Surya
             for file_result in flagged_results:
@@ -533,9 +549,7 @@ def run_pipeline(
                 stem = Path(file_result.output_path).stem
                 metadata = file_result.to_dict(include_text=False)
                 json_path = final_dir / f"{stem}.json"
-                json_path.write_text(
-                    json.dumps(metadata, indent=2), encoding="utf-8"
-                )
+                json_path.write_text(json.dumps(metadata, indent=2), encoding="utf-8")
 
         # --- Clean up .txt files unless extract_text enabled ---
         if not config.extract_text:
@@ -554,7 +568,9 @@ def run_pipeline(
         success_count = sum(1 for r in file_results if r.success)
         logger.info(
             "Pipeline complete: %d/%d successful in %.1fs, output: %s",
-            success_count, len(file_results), elapsed,
+            success_count,
+            len(file_results),
+            elapsed,
             config.output_dir / "final",
         )
 
