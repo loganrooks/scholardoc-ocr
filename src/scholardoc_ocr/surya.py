@@ -148,3 +148,74 @@ def convert_pdf(
             filename=str(input_path),
             details={"page_range": page_range},
         ) from exc
+
+
+def convert_pdf_with_fallback(
+    input_path: Path,
+    model_dict: dict[str, Any],
+    config: SuryaConfig | None = None,
+    page_range: list[int] | None = None,
+    strict_gpu: bool = False,
+) -> tuple[str, bool]:
+    """Convert PDF with fallback from GPU to CPU on failure.
+
+    If GPU inference fails (MPS/CUDA error, OOM), reloads models on CPU
+    and retries the entire conversion. This handles known MPS bugs in
+    the detection model.
+
+    Args:
+        input_path: Path to the input PDF file.
+        model_dict: Pre-loaded model dictionary.
+        config: Surya configuration.
+        page_range: Optional list of page indices.
+        strict_gpu: If True, don't fall back to CPU on failure.
+
+    Returns:
+        Tuple of (markdown_text, fallback_occurred).
+
+    Raises:
+        SuryaError: If conversion fails and strict_gpu=True, or if
+                    CPU fallback also fails.
+    """
+    fallback_needed = False
+    error_message = ""
+
+    try:
+        markdown = convert_pdf(input_path, model_dict, config, page_range)
+        return markdown, False
+    except RuntimeError as exc:
+        if strict_gpu:
+            raise SuryaError(
+                f"GPU inference failed and strict_gpu=True: {exc}",
+                filename=str(input_path),
+                details={"strict_gpu": True, "error": str(exc)},
+            ) from exc
+        fallback_needed = True
+        error_message = str(exc)
+
+    # OOM recovery must happen OUTSIDE except block to allow GC
+    if fallback_needed:
+        # Clear GPU memory before CPU retry
+        try:
+            import torch  # noqa: PLC0415
+
+            if torch.backends.mps.is_available():
+                torch.mps.empty_cache()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+        except Exception:
+            pass
+
+        logger.warning(
+            "GPU inference failed, retrying on CPU: %s",
+            error_message,
+        )
+        cpu_model_dict, _ = load_models(device="cpu")
+        markdown = convert_pdf(input_path, cpu_model_dict, config, page_range)
+        return markdown, True
+
+    # This should never be reached, but satisfy type checker
+    raise SuryaError(
+        "Unexpected state in convert_pdf_with_fallback",
+        filename=str(input_path),
+    )
