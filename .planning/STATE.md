@@ -5,30 +5,30 @@
 See: .planning/PROJECT.md (updated 2026-02-03)
 
 **Core value:** Produce accurate OCR text from scanned academic PDFs with minimal manual intervention, using quality-gated fallback to avoid expensive neural OCR unless needed.
-**Current focus:** Phase 11 - Benchmarking Foundation
+**Current focus:** Phase 12 - Device Configuration
 
 ## Current Position
 
-Phase: 11 of 14 (Benchmarking Foundation) — COMPLETE
-Plan: 5/5 complete
-Status: Phase complete, verified
-Last activity: 2026-02-03 — Completed Phase 11, verification passed (8/8 must-haves)
+Phase: 12 of 14 (Device Configuration)
+Plan: 2/4 complete
+Status: In progress
+Last activity: 2026-02-04 — Completed 12-02-PLAN.md (device tracking in FileResult)
 
-Progress: v1.0 [##########] | v2.0 [##########] | v2.1 [#####     ] 50%
+Progress: v1.0 [##########] | v2.0 [##########] | v2.1 [######    ] 60%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 26 (v1.0: 17, v2.0: 8, v2.1: 4)
+- Total plans completed: 28 (v1.0: 17, v2.0: 8, v2.1: 6)
 - Average duration: ~30 min (estimate from previous milestones)
-- Total execution time: ~13 hours
+- Total execution time: ~14 hours
 
 **By Phase (v2.1):**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 11. Benchmarking | 5/5 ✓ | 17min | 3.4min |
-| 12. Device Config | - | - | - |
+| 11. Benchmarking | 5/5 | 17min | 3.4min |
+| 12. Device Config | 2/4 | 3min | 1.5min |
 | 13. Model Caching | - | - | - |
 | 14. Batching | - | - | - |
 
@@ -53,6 +53,7 @@ Recent decisions affecting v2.1:
 - Per-file timing keys: Store surya_model_load and surya_inference in phase_timings dict
 - CI benchmark threshold: 150% alert threshold (fail on 50%+ regression)
 - macos-14 runner: Apple Silicon for MPS benchmark parity with local dev
+- device_used as str|None: Flexible device tracking, omit from JSON when None
 
 ### Pending Todos
 
@@ -71,6 +72,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-02-03
-Stopped at: Phase 11 complete, verified, ready for Phase 12
+Last session: 2026-02-04
+Stopped at: Completed 12-02-PLAN.md (device tracking in FileResult)
 Resume file: None
