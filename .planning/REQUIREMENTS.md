@@ -9,10 +9,10 @@ Requirements for v2.1 Performance milestone — Surya optimization for Apple Sil
 
 ### Device Configuration
 
-- [ ] **DEV-01**: Pipeline explicitly selects MPS device on Apple Silicon
-- [ ] **DEV-02**: Device availability validated at startup with actionable error messages
-- [ ] **DEV-03**: Automatic fallback to CPU when MPS unavailable or fails
-- [ ] **DEV-04**: Per-model device selection (detection on CPU, recognition on MPS) to work around MPS bugs
+- [x] **DEV-01**: Pipeline explicitly selects MPS device on Apple Silicon
+- [x] **DEV-02**: Device availability validated at startup with actionable error messages
+- [x] **DEV-03**: Automatic fallback to CPU when MPS unavailable or fails
+- [x] **DEV-04**: Per-model device selection (detection on CPU, recognition on MPS) to work around MPS bugs
 
 ### Batch Optimization
 
@@ -89,10 +89,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DEV-01 | Phase 12 | Pending |
-| DEV-02 | Phase 12 | Pending |
-| DEV-03 | Phase 12 | Pending |
-| DEV-04 | Phase 12 | Pending |
+| DEV-01 | Phase 12 | Complete |
+| DEV-02 | Phase 12 | Complete |
+| DEV-03 | Phase 12 | Complete |
+| DEV-04 | Phase 12 | Complete |
 | BATCH-01 | Phase 14 | Pending |
 | BATCH-02 | Phase 14 | Pending |
 | BATCH-03 | Phase 14 | Pending |

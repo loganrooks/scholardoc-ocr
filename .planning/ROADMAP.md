@@ -27,7 +27,7 @@ See .planning/milestones/v2.0-ROADMAP.md for v2.0 details. 3 phases, 8 plans, 20
 **Milestone Goal:** Optimize Surya OCR performance on Apple Silicon through MPS acceleration, model caching, and cross-file batching. Expected cumulative improvement: 5-15x for multi-file batches.
 
 - [x] **Phase 11: Benchmarking Foundation & Metrics Fixes** - Establish baseline measurements, fix timing/metadata bugs
-- [ ] **Phase 12: Device Configuration** - MPS device selection and validation
+- [x] **Phase 12: Device Configuration** - MPS device selection and validation
 - [ ] **Phase 13: Model Caching** - Persist loaded models across MCP requests
 - [ ] **Phase 14: Cross-File Batching** - Aggregate flagged pages across all files
 
@@ -67,11 +67,11 @@ Plans:
 **Plans**: 5 plans
 
 Plans:
-- [ ] 12-01-PLAN.md — Device detection infrastructure (DeviceType, DeviceInfo, detect_device)
-- [ ] 12-02-PLAN.md — FileResult device tracking (device_used field)
-- [ ] 12-03-PLAN.md — Surya and pipeline integration (use device detection, track device in results)
-- [ ] 12-04-PLAN.md — CLI --strict-gpu flag and startup validation (check_gpu_availability)
-- [ ] 12-05-PLAN.md — Inference-time GPU-to-CPU fallback (convert_pdf_with_fallback)
+- [x] 12-01-PLAN.md — Device detection infrastructure (DeviceType, DeviceInfo, detect_device)
+- [x] 12-02-PLAN.md — FileResult device tracking (device_used field)
+- [x] 12-03-PLAN.md — Surya and pipeline integration (use device detection, track device in results)
+- [x] 12-04-PLAN.md — CLI --strict-gpu flag and startup validation (check_gpu_availability)
+- [x] 12-05-PLAN.md — Inference-time GPU-to-CPU fallback (convert_pdf_with_fallback)
 
 ### Phase 13: Model Caching
 **Goal**: Eliminate repeated model loading overhead for MCP server by persisting loaded Surya models across requests.
@@ -110,6 +110,6 @@ Plans:
 | 1-7 | v1.0 | 17/17 | Complete | 2026-02-02 |
 | 8-10 | v2.0 | 8/8 | Complete | 2026-02-02 |
 | 11. Benchmarking Foundation | v2.1 | 5/5 | Complete | 2026-02-03 |
-| 12. Device Configuration | v2.1 | 0/5 | Planned | - |
+| 12. Device Configuration | v2.1 | 5/5 | Complete | 2026-02-04 |
 | 13. Model Caching | v2.1 | 0/? | Not started | - |
 | 14. Cross-File Batching | v2.1 | 0/? | Not started | - |
