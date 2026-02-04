@@ -10,16 +10,16 @@ See: .planning/PROJECT.md (updated 2026-02-03)
 ## Current Position
 
 Phase: 12 of 14 (Device Configuration)
-Plan: 4/4 complete
+Plan: 5/5 complete
 Status: Phase complete
-Last activity: 2026-02-04 — Completed 12-04-PLAN.md (CLI device control)
+Last activity: 2026-02-04 — Completed 12-05-PLAN.md (inference GPU fallback)
 
 Progress: v1.0 [##########] | v2.0 [##########] | v2.1 [########  ] 80%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 29 (v1.0: 17, v2.0: 8, v2.1: 7)
+- Total plans completed: 30 (v1.0: 17, v2.0: 8, v2.1: 8)
 - Average duration: ~30 min (estimate from previous milestones)
 - Total execution time: ~14 hours
 
@@ -28,7 +28,7 @@ Progress: v1.0 [##########] | v2.0 [##########] | v2.1 [########  ] 80%
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 11. Benchmarking | 5/5 | 17min | 3.4min |
-| 12. Device Config | 4/4 | 10min | 2.5min |
+| 12. Device Config | 5/5 | 13min | 2.6min |
 | 13. Model Caching | - | - | - |
 | 14. Batching | - | - | - |
 
@@ -57,6 +57,7 @@ Recent decisions affecting v2.1:
 - load_models() returns tuple: (model_dict, device_str) for explicit device tracking
 - check_gpu_availability() lazy imports torch: Avoids loading ML deps at startup
 - strict_gpu enforcement deferred to inference: Flag stored in config, enforced in convert_pdf_with_fallback()
+- OOM recovery outside except block: GPU memory cleared after exception handling for proper garbage collection
 
 ### Pending Todos
 
@@ -76,5 +77,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-04
-Stopped at: Completed 12-04-PLAN.md (CLI device control) - Phase 12 complete
+Stopped at: Completed 12-05-PLAN.md (inference GPU fallback) - Phase 12 complete
 Resume file: None
