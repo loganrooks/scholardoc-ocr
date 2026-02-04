@@ -250,3 +250,105 @@ class TestCLIStrictGPUFlag:
         # Check that help text mentions GPU and CPU fallback
         assert "GPU" in result.stdout or "gpu" in result.stdout
         assert "CPU" in result.stdout or "cpu" in result.stdout or "fall" in result.stdout
+
+
+class TestConvertPdfWithFallback:
+    """Tests for convert_pdf_with_fallback function."""
+
+    def test_convert_pdf_with_fallback_exists(self):
+        """convert_pdf_with_fallback function should exist and be callable."""
+        from scholardoc_ocr.surya import convert_pdf_with_fallback
+
+        assert callable(convert_pdf_with_fallback)
+
+    def test_convert_pdf_with_fallback_falls_back_on_error(self, tmp_path, monkeypatch):
+        """Verify fallback to CPU when GPU conversion fails."""
+        from scholardoc_ocr import surya
+
+        # Create a minimal mock PDF path
+        pdf_path = tmp_path / "test.pdf"
+        pdf_path.touch()
+
+        # Track which device was used
+        calls = []
+
+        def mock_convert_pdf(input_path, model_dict, config=None, page_range=None):
+            device = model_dict.get("_test_device", "unknown")
+            calls.append(device)
+            if device != "cpu":
+                raise RuntimeError("Mock GPU failure")
+            return "mock markdown"
+
+        def mock_load_models(device=None):
+            return {"_test_device": device or "gpu"}, device or "gpu"
+
+        monkeypatch.setattr(surya, "convert_pdf", mock_convert_pdf)
+        monkeypatch.setattr(surya, "load_models", mock_load_models)
+
+        model_dict = {"_test_device": "gpu"}
+        markdown, fallback = surya.convert_pdf_with_fallback(
+            pdf_path, model_dict, strict_gpu=False
+        )
+
+        assert fallback is True
+        assert markdown == "mock markdown"
+        assert "cpu" in calls  # Should have retried on CPU
+
+    def test_convert_pdf_with_fallback_strict_gpu_raises(self, tmp_path, monkeypatch):
+        """Verify strict_gpu=True raises instead of falling back."""
+        from scholardoc_ocr import surya
+        from scholardoc_ocr.exceptions import SuryaError
+
+        pdf_path = tmp_path / "test.pdf"
+        pdf_path.touch()
+
+        def mock_convert_pdf(*args, **kwargs):
+            raise RuntimeError("Mock GPU failure")
+
+        monkeypatch.setattr(surya, "convert_pdf", mock_convert_pdf)
+
+        model_dict = {}
+        with pytest.raises(SuryaError) as exc_info:
+            surya.convert_pdf_with_fallback(pdf_path, model_dict, strict_gpu=True)
+
+        assert "strict_gpu=True" in str(exc_info.value)
+
+    def test_convert_pdf_with_fallback_success_no_fallback(self, tmp_path, monkeypatch):
+        """Verify no fallback when GPU conversion succeeds."""
+        from scholardoc_ocr import surya
+
+        pdf_path = tmp_path / "test.pdf"
+        pdf_path.touch()
+
+        def mock_convert_pdf(input_path, model_dict, config=None, page_range=None):
+            return "successful gpu markdown"
+
+        monkeypatch.setattr(surya, "convert_pdf", mock_convert_pdf)
+
+        model_dict = {}
+        markdown, fallback = surya.convert_pdf_with_fallback(
+            pdf_path, model_dict, strict_gpu=False
+        )
+
+        assert fallback is False
+        assert markdown == "successful gpu markdown"
+
+    def test_convert_pdf_with_fallback_returns_tuple(self, tmp_path, monkeypatch):
+        """Verify function returns a tuple of (str, bool)."""
+        from scholardoc_ocr import surya
+
+        pdf_path = tmp_path / "test.pdf"
+        pdf_path.touch()
+
+        def mock_convert_pdf(input_path, model_dict, config=None, page_range=None):
+            return "markdown"
+
+        monkeypatch.setattr(surya, "convert_pdf", mock_convert_pdf)
+
+        model_dict = {}
+        result = surya.convert_pdf_with_fallback(pdf_path, model_dict)
+
+        assert isinstance(result, tuple)
+        assert len(result) == 2
+        assert isinstance(result[0], str)
+        assert isinstance(result[1], bool)
