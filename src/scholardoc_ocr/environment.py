@@ -17,6 +17,35 @@ import tempfile
 logger = logging.getLogger(__name__)
 
 
+def check_gpu_availability() -> tuple[bool, str]:
+    """Check GPU availability and return status message.
+
+    Returns:
+        Tuple of (available, message) where message explains the status.
+        The message is actionable, explaining why GPU is or isn't available.
+    """
+    try:
+        import torch
+    except ImportError:
+        return (False, "GPU not available (PyTorch not installed)")
+
+    # Check CUDA first (highest priority)
+    if torch.cuda.is_available():
+        device_name = torch.cuda.get_device_name(0)
+        return (True, f"CUDA available: {device_name}")
+
+    # Check MPS (Apple Silicon)
+    if hasattr(torch.backends, "mps"):
+        if torch.backends.mps.is_available():
+            return (True, "MPS available (Apple Silicon)")
+        elif torch.backends.mps.is_built():
+            return (False, "MPS built but not available (macOS < 12.3 or no GPU)")
+        else:
+            return (False, "MPS not available (PyTorch not built with MPS)")
+
+    return (False, "GPU not available, will use CPU")
+
+
 class EnvironmentError(RuntimeError):
     """Raised when required environment dependencies are missing or misconfigured."""
 
@@ -120,3 +149,7 @@ def log_startup_diagnostics(langs_tesseract: str = "eng,fra,ell,lat,deu") -> Non
         logger.info("tesseract available languages: %s", ", ".join(available))
     except (subprocess.SubprocessError, OSError) as e:
         logger.warning("Failed to get tesseract languages: %s", e)
+
+    # GPU availability
+    gpu_available, gpu_message = check_gpu_availability()
+    logger.info("GPU: %s", gpu_message)
