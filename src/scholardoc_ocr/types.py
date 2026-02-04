@@ -40,8 +40,7 @@ def resolve_languages(iso_codes: list[str]) -> tuple[str, str]:
     for code in iso_codes:
         if code not in LANGUAGE_MAP:
             raise ValueError(
-                f"Unsupported language code: {code!r}. "
-                f"Supported: {', '.join(sorted(LANGUAGE_MAP))}"
+                f"Unsupported language code: {code!r}. Supported: {', '.join(sorted(LANGUAGE_MAP))}"
             )
         tess_langs.append(LANGUAGE_MAP[code]["tesseract"])
         surya_langs.append(LANGUAGE_MAP[code]["surya"])
