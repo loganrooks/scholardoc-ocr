@@ -222,6 +222,7 @@ def run_pipeline(
     """
     from . import surya
     from .logging_ import setup_main_logging, stop_logging, worker_log_initializer
+    from .model_cache import ModelCache, cleanup_between_documents
     from .postprocess import postprocess as _postprocess
 
     cb: PipelineCallback = callback or LoggingCallback()
@@ -377,12 +378,14 @@ def run_pipeline(
                 )
             )
 
-            # Load models once
+            # Load models once (via cache for MODEL-01)
             cb.on_model(ModelEvent(model_name="surya", status="loading"))
+            cache = ModelCache.get_instance()
             t0 = time.time()
-            model_dict, device_used = surya.load_models()  # Now returns tuple
+            model_dict, device_used = cache.get_models()
             mps_sync()  # Ensure GPU work completes before timing
             surya_model_load_time = time.time() - t0
+            # Note: surya_model_load_time will be ~0 on cache hit
             cb.on_model(
                 ModelEvent(model_name="surya", status="loaded", time_seconds=surya_model_load_time)
             )
@@ -519,6 +522,9 @@ def run_pipeline(
                         file_result.filename,
                         device_used,
                     )
+
+                    # Clean up GPU memory between documents (MODEL-03)
+                    cleanup_between_documents()
 
                 except Exception as e:
                     logger.warning(
