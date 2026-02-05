@@ -100,10 +100,12 @@ Plans:
   3. Default batch sizes adjust based on available memory (smaller on 8GB, larger on 32GB+)
   4. Surya results map back correctly to source files (per-file, per-page)
   5. Batch size adapts if memory pressure detected during processing
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 14-01: TBD
+- [ ] 14-01-PLAN.md — Batch configuration infrastructure (memory detection, env var setup, FlaggedPage)
+- [ ] 14-02-PLAN.md — Cross-file batching (combined PDF, single Surya call, result mapping)
+- [ ] 14-03-PLAN.md — Adaptive batch sizing (memory pressure monitoring, conservative defaults)
 
 ## Progress
 
@@ -114,4 +116,4 @@ Plans:
 | 11. Benchmarking Foundation | v2.1 | 5/5 | Complete | 2026-02-03 |
 | 12. Device Configuration | v2.1 | 5/5 | Complete | 2026-02-04 |
 | 13. Model Caching | v2.1 | 3/3 | Complete | 2026-02-05 |
-| 14. Cross-File Batching | v2.1 | 0/? | Not started | - |
+| 14. Cross-File Batching | v2.1 | 0/3 | Not started | - |
