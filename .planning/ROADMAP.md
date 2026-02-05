@@ -28,7 +28,7 @@ See .planning/milestones/v2.0-ROADMAP.md for v2.0 details. 3 phases, 8 plans, 20
 
 - [x] **Phase 11: Benchmarking Foundation & Metrics Fixes** - Establish baseline measurements, fix timing/metadata bugs
 - [x] **Phase 12: Device Configuration** - MPS device selection and validation
-- [ ] **Phase 13: Model Caching** - Persist loaded models across MCP requests
+- [x] **Phase 13: Model Caching** - Persist loaded models across MCP requests
 - [ ] **Phase 14: Cross-File Batching** - Aggregate flagged pages across all files
 
 ## Phase Details
@@ -86,9 +86,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 13-01-PLAN.md — ModelCache module (singleton, TTL, GPU cleanup utilities)
-- [ ] 13-02-PLAN.md — Pipeline integration (use cached models, inter-document cleanup)
-- [ ] 13-03-PLAN.md — MCP server integration (lifespan hooks, ocr_memory_stats tool)
+- [x] 13-01-PLAN.md — ModelCache module (singleton, TTL, GPU cleanup utilities)
+- [x] 13-02-PLAN.md — Pipeline integration (use cached models, inter-document cleanup)
+- [x] 13-03-PLAN.md — MCP server integration (lifespan hooks, ocr_memory_stats tool)
 
 ### Phase 14: Cross-File Batching
 **Goal**: Process all flagged pages across multiple files in a single Surya batch, maximizing GPU utilization.
@@ -113,5 +113,5 @@ Plans:
 | 8-10 | v2.0 | 8/8 | Complete | 2026-02-02 |
 | 11. Benchmarking Foundation | v2.1 | 5/5 | Complete | 2026-02-03 |
 | 12. Device Configuration | v2.1 | 5/5 | Complete | 2026-02-04 |
-| 13. Model Caching | v2.1 | 0/3 | Planned | - |
+| 13. Model Caching | v2.1 | 3/3 | Complete | 2026-02-05 |
 | 14. Cross-File Batching | v2.1 | 0/? | Not started | - |

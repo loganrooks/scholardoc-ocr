@@ -5,21 +5,21 @@
 See: .planning/PROJECT.md (updated 2026-02-03)
 
 **Core value:** Produce accurate OCR text from scanned academic PDFs with minimal manual intervention, using quality-gated fallback to avoid expensive neural OCR unless needed.
-**Current focus:** Phase 13 - Model Caching
+**Current focus:** Phase 13 - Model Caching — COMPLETE
 
 ## Current Position
 
-Phase: 13 of 14 (Model Caching)
-Plan: 2/3 complete
-Status: In progress
-Last activity: 2026-02-04 — Completed 13-02-PLAN.md (Pipeline Cache Integration)
+Phase: 13 of 14 (Model Caching) — COMPLETE
+Plan: 3/3 complete
+Status: Phase complete, verified
+Last activity: 2026-02-05 — Phase 13 verified (5/5 must-haves)
 
-Progress: v1.0 [##########] | v2.0 [##########] | v2.1 [#########-] 87%
+Progress: v1.0 [##########] | v2.0 [##########] | v2.1 [#########-] 90%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 32 (v1.0: 17, v2.0: 8, v2.1: 10)
+- Total plans completed: 33 (v1.0: 17, v2.0: 8, v2.1: 11)
 - Average duration: ~30 min (estimate from previous milestones)
 - Total execution time: ~14 hours
 
@@ -29,7 +29,7 @@ Progress: v1.0 [##########] | v2.0 [##########] | v2.1 [#########-] 87%
 |-------|-------|-------|----------|
 | 11. Benchmarking | 5/5 | 17min | 3.4min |
 | 12. Device Config | 5/5 | 13min | 2.6min |
-| 13. Model Caching | 2/3 | 12min | 6.0min |
+| 13. Model Caching | 3/3 | 16min | 5.3min |
 | 14. Batching | - | - | - |
 
 *Updated after each plan completion*
@@ -65,6 +65,8 @@ Recent decisions affecting v2.1:
 - Cache integration at run_pipeline level: Single cache lookup per pipeline run
 - Cleanup after success only: cleanup_between_documents() called after Surya completes
 - ModelCache mock pattern: Mock at scholardoc_ocr.model_cache module level for tests
+- MCP lifespan for warm loading: SCHOLARDOC_WARM_LOAD=true env var triggers pre-loading at startup
+- Memory stats via MCP tool: ocr_memory_stats returns device, allocated_mb, reserved_mb, cache_ttl_seconds
 
 ### Pending Todos
 
@@ -83,6 +85,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-02-04
-Stopped at: Completed 13-02-PLAN.md (Pipeline Cache Integration)
+Last session: 2026-02-05
+Stopped at: Phase 13 complete, verified, ready for Phase 14
 Resume file: None
