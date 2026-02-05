@@ -24,6 +24,7 @@ from scholardoc_ocr.batch import (
     create_combined_pdf,
     get_available_memory_gb,
     map_results_to_files,
+    split_into_batches,
     split_markdown_by_pages,
 )
 from scholardoc_ocr.types import FileResult, OCREngine, PageResult, PageStatus
@@ -860,3 +861,209 @@ class TestBatchIntegration:
             batch_size = compute_safe_batch_size(100, available_gb, "mps")
             # 3 * 0.5 / 0.7 = 2.14 -> 2 pages
             assert batch_size == 2
+
+
+# =============================================================================
+# Split Into Batches Tests (BATCH-05 Gap Closure)
+# =============================================================================
+
+
+class TestSplitIntoBatches:
+    """Tests for split_into_batches function."""
+
+    def test_no_split_when_memory_sufficient(self):
+        """Verify single batch returned when memory is plentiful."""
+        # Create 10 mock flagged pages
+        mock_result = MagicMock(spec=FileResult)
+        mock_result.filename = "test.pdf"
+        pages = [
+            FlaggedPage(
+                file_result=mock_result,
+                page_number=i,
+                input_path=Path("/test/test.pdf"),
+                batch_index=i,
+            )
+            for i in range(10)
+        ]
+
+        # 32GB memory should fit all 10 pages in one batch
+        # 32 * 0.5 / 0.7 = 22.8 pages max
+        batches = split_into_batches(pages, 32.0, "mps")
+
+        assert len(batches) == 1
+        assert batches[0] == pages
+
+    def test_split_when_memory_constrained(self):
+        """Verify pages split into multiple batches under memory pressure."""
+        mock_result = MagicMock(spec=FileResult)
+        mock_result.filename = "test.pdf"
+        pages = [
+            FlaggedPage(
+                file_result=mock_result,
+                page_number=i,
+                input_path=Path("/test/test.pdf"),
+                batch_index=i,
+            )
+            for i in range(50)
+        ]
+
+        # 4GB memory -> 4 * 0.5 / 0.7 = 2.8 -> 2 pages per batch
+        # 50 pages / 2 per batch = 25 batches
+        batches = split_into_batches(pages, 4.0, "mps")
+
+        assert len(batches) == 25
+        assert all(len(b) == 2 for b in batches)
+
+    def test_split_preserves_batch_indices(self):
+        """Verify original batch_index values preserved after splitting."""
+        mock_result = MagicMock(spec=FileResult)
+        mock_result.filename = "test.pdf"
+        pages = [
+            FlaggedPage(
+                file_result=mock_result,
+                page_number=i,
+                input_path=Path("/test/test.pdf"),
+                batch_index=i * 10,  # Non-sequential batch indices
+            )
+            for i in range(6)
+        ]
+
+        # 4GB memory -> 2 pages per batch -> 3 batches
+        batches = split_into_batches(pages, 4.0, "mps")
+
+        # Flatten and verify batch indices are preserved
+        flattened = [p for batch in batches for p in batch]
+        assert [p.batch_index for p in flattened] == [0, 10, 20, 30, 40, 50]
+
+    def test_split_empty_pages(self):
+        """Verify empty input returns empty list."""
+        batches = split_into_batches([], 32.0, "mps")
+        assert batches == []
+
+    def test_split_single_page(self):
+        """Verify single page always returns single batch."""
+        mock_result = MagicMock(spec=FileResult)
+        pages = [
+            FlaggedPage(
+                file_result=mock_result,
+                page_number=0,
+                input_path=Path("/test/test.pdf"),
+                batch_index=0,
+            )
+        ]
+
+        # Even with low memory, single page = single batch
+        batches = split_into_batches(pages, 2.0, "mps")
+
+        assert len(batches) == 1
+        assert batches[0] == pages
+
+    def test_split_cpu_device(self):
+        """Verify CPU uses different batch sizing (capped at 32)."""
+        mock_result = MagicMock(spec=FileResult)
+        pages = [
+            FlaggedPage(
+                file_result=mock_result,
+                page_number=i,
+                input_path=Path("/test/test.pdf"),
+                batch_index=i,
+            )
+            for i in range(100)
+        ]
+
+        # CPU: capped at 32 pages regardless of memory
+        batches = split_into_batches(pages, 64.0, "cpu")
+
+        # 100 pages / 32 per batch = 4 batches (32, 32, 32, 4)
+        assert len(batches) == 4
+        assert len(batches[0]) == 32
+        assert len(batches[1]) == 32
+        assert len(batches[2]) == 32
+        assert len(batches[3]) == 4
+
+    def test_split_logs_when_splitting(self, caplog):
+        """Verify INFO log emitted when splitting occurs."""
+        import logging
+
+        mock_result = MagicMock(spec=FileResult)
+        pages = [
+            FlaggedPage(
+                file_result=mock_result,
+                page_number=i,
+                input_path=Path("/test/test.pdf"),
+                batch_index=i,
+            )
+            for i in range(20)
+        ]
+
+        with caplog.at_level(logging.INFO, logger="scholardoc_ocr.batch"):
+            batches = split_into_batches(pages, 4.0, "mps")
+
+        # Should have split into multiple batches and logged
+        assert len(batches) > 1
+        assert any("Splitting" in record.message for record in caplog.records)
+        assert any("sub-batches" in record.message for record in caplog.records)
+
+    def test_split_no_log_when_single_batch(self, caplog):
+        """Verify no log emitted when no splitting needed."""
+        import logging
+
+        mock_result = MagicMock(spec=FileResult)
+        pages = [
+            FlaggedPage(
+                file_result=mock_result,
+                page_number=i,
+                input_path=Path("/test/test.pdf"),
+                batch_index=i,
+            )
+            for i in range(5)
+        ]
+
+        with caplog.at_level(logging.INFO, logger="scholardoc_ocr.batch"):
+            batches = split_into_batches(pages, 32.0, "mps")
+
+        # Single batch, no splitting log
+        assert len(batches) == 1
+        assert not any("Splitting" in record.message for record in caplog.records)
+
+    def test_split_uneven_pages(self):
+        """Verify uneven page counts handled correctly."""
+        mock_result = MagicMock(spec=FileResult)
+        pages = [
+            FlaggedPage(
+                file_result=mock_result,
+                page_number=i,
+                input_path=Path("/test/test.pdf"),
+                batch_index=i,
+            )
+            for i in range(7)
+        ]
+
+        # 4GB memory -> 2 pages per batch -> 4 batches (2, 2, 2, 1)
+        batches = split_into_batches(pages, 4.0, "mps")
+
+        assert len(batches) == 4
+        assert len(batches[0]) == 2
+        assert len(batches[1]) == 2
+        assert len(batches[2]) == 2
+        assert len(batches[3]) == 1
+
+    def test_split_uses_compute_safe_batch_size(self):
+        """Verify split_into_batches uses compute_safe_batch_size internally."""
+        mock_result = MagicMock(spec=FileResult)
+        pages = [
+            FlaggedPage(
+                file_result=mock_result,
+                page_number=i,
+                input_path=Path("/test/test.pdf"),
+                batch_index=i,
+            )
+            for i in range(50)
+        ]
+
+        # 8GB memory -> 8 * 0.5 / 0.7 = 5.7 -> 5 pages per batch
+        # Expected: 50 / 5 = 10 batches
+        batches = split_into_batches(pages, 8.0, "mps")
+
+        assert len(batches) == 10
+        assert all(len(b) == 5 for b in batches)
