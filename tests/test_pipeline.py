@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import scholardoc_ocr.model_cache  # noqa: F401 - pre-import for patching
 import scholardoc_ocr.surya  # noqa: F401 - pre-import for patching
 from scholardoc_ocr.exceptions import SuryaError
 from scholardoc_ocr.pipeline import PipelineConfig, run_pipeline
@@ -277,10 +278,10 @@ class TestForceSurya:
     """Test 5: force_surya triggers Surya on all pages even if quality is good."""
 
     @patch("scholardoc_ocr.surya.convert_pdf")
-    @patch("scholardoc_ocr.surya.load_models")
+    @patch("scholardoc_ocr.model_cache.ModelCache")
     @patch("scholardoc_ocr.pipeline.ProcessPoolExecutor")
     def test_pipeline_force_surya(
-        self, mock_pool_cls, mock_load, mock_convert, tmp_path: Path
+        self, mock_pool_cls, mock_cache_cls, mock_convert, tmp_path: Path
     ):
         _create_mock_pdf(tmp_path / "input" / "doc.pdf")
         config = _make_config(tmp_path, files=["doc.pdf"], force_surya=True)
@@ -296,7 +297,11 @@ class TestForceSurya:
         final_dir.mkdir(parents=True, exist_ok=True)
         (final_dir / "doc.txt").write_text("page0\n\npage1", encoding="utf-8")
 
-        mock_load.return_value = ({"model": "mock"}, "mps")  # Returns tuple now
+        # Configure ModelCache mock to return models
+        mock_cache_instance = MagicMock()
+        mock_cache_instance.get_models.return_value = ({"model": "mock"}, "mps")
+        mock_cache_cls.get_instance.return_value = mock_cache_instance
+
         mock_convert.return_value = "SURYA_FORCED"
 
         with patch(
@@ -304,7 +309,9 @@ class TestForceSurya:
         ):
             run_pipeline(config)
 
-        mock_load.assert_called_once()
+        # Verify ModelCache was used to get models
+        mock_cache_cls.get_instance.assert_called_once()
+        mock_cache_instance.get_models.assert_called_once()
         mock_convert.assert_called_once()
 
 
@@ -352,6 +359,98 @@ class TestPipelineConfigDefaults:
         config = PipelineConfig()
         assert hasattr(config, "force_surya")
         assert config.force_surya is False
+
+
+class TestModelCacheIntegration:
+    """Tests for MODEL-01 and MODEL-03: model caching and inter-document cleanup."""
+
+    @patch("scholardoc_ocr.surya.convert_pdf")
+    @patch("scholardoc_ocr.model_cache.cleanup_between_documents")
+    @patch("scholardoc_ocr.model_cache.ModelCache")
+    @patch("scholardoc_ocr.pipeline.ProcessPoolExecutor")
+    def test_pipeline_uses_model_cache(
+        self, mock_pool_cls, mock_cache_cls, mock_cleanup, mock_convert, tmp_path: Path
+    ):
+        """Verify pipeline uses ModelCache instead of direct load_models (MODEL-01)."""
+        _create_mock_pdf(tmp_path / "input" / "doc.pdf")
+        config = _make_config(tmp_path, files=["doc.pdf"], force_surya=True)
+
+        # Set up file result with flagged pages to trigger Surya
+        result_fr = _flagged_file_result("doc.pdf", page_count=2, flagged_indices=[0])
+        future = MagicMock()
+        future.result.return_value = result_fr
+
+        pool_ctx, pool = _mock_pool([future])
+        mock_pool_cls.return_value = pool_ctx
+
+        # Pre-create .txt file
+        final_dir = tmp_path / "output" / "final"
+        final_dir.mkdir(parents=True, exist_ok=True)
+        (final_dir / "doc.txt").write_text("BAD\n\npage1", encoding="utf-8")
+
+        # Configure ModelCache mock
+        mock_cache_instance = MagicMock()
+        mock_cache_instance.get_models.return_value = ({"model": "mock"}, "cpu")
+        mock_cache_cls.get_instance.return_value = mock_cache_instance
+
+        mock_convert.return_value = "SURYA_TEXT"
+
+        with patch(
+            "scholardoc_ocr.pipeline.as_completed", return_value=iter([future])
+        ):
+            run_pipeline(config)
+
+        # Verify ModelCache was used instead of direct surya.load_models
+        mock_cache_cls.get_instance.assert_called_once()
+        mock_cache_instance.get_models.assert_called_once()
+
+    @patch("scholardoc_ocr.surya.convert_pdf")
+    @patch("scholardoc_ocr.model_cache.cleanup_between_documents")
+    @patch("scholardoc_ocr.model_cache.ModelCache")
+    @patch("scholardoc_ocr.pipeline.ProcessPoolExecutor")
+    def test_pipeline_cleanup_between_documents(
+        self, mock_pool_cls, mock_cache_cls, mock_cleanup, mock_convert, tmp_path: Path
+    ):
+        """Verify cleanup_between_documents called after each Surya file (MODEL-03)."""
+        # Create two test PDFs
+        _create_mock_pdf(tmp_path / "input" / "doc1.pdf")
+        _create_mock_pdf(tmp_path / "input" / "doc2.pdf")
+        config = _make_config(
+            tmp_path, files=["doc1.pdf", "doc2.pdf"], force_surya=True, extract_text=True
+        )
+
+        # Set up file results with flagged pages to trigger Surya
+        result_fr1 = _flagged_file_result("doc1.pdf", page_count=2, flagged_indices=[0])
+        result_fr2 = _flagged_file_result("doc2.pdf", page_count=2, flagged_indices=[0])
+
+        future1 = MagicMock()
+        future1.result.return_value = result_fr1
+        future2 = MagicMock()
+        future2.result.return_value = result_fr2
+
+        pool_ctx, pool = _mock_pool([future1, future2])
+        mock_pool_cls.return_value = pool_ctx
+
+        # Pre-create .txt files
+        final_dir = tmp_path / "output" / "final"
+        final_dir.mkdir(parents=True, exist_ok=True)
+        (final_dir / "doc1.txt").write_text("BAD\n\npage1", encoding="utf-8")
+        (final_dir / "doc2.txt").write_text("BAD\n\npage1", encoding="utf-8")
+
+        # Configure ModelCache mock
+        mock_cache_instance = MagicMock()
+        mock_cache_instance.get_models.return_value = ({"model": "mock"}, "cpu")
+        mock_cache_cls.get_instance.return_value = mock_cache_instance
+
+        mock_convert.return_value = "SURYA_TEXT"
+
+        with patch(
+            "scholardoc_ocr.pipeline.as_completed", return_value=iter([future1, future2])
+        ):
+            run_pipeline(config)
+
+        # Verify cleanup called once per file processed by Surya
+        assert mock_cleanup.call_count == 2
 
 
 class TestMetricsFixes:

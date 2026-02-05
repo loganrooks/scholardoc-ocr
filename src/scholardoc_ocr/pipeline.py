@@ -487,7 +487,7 @@ def run_pipeline(
                                 # Get the Surya text for this page if available
                                 if page.page_number < len(surya_page_texts):
                                     page_text = surya_page_texts[page.page_number]
-                                    quality_result = analyzer.analyze_page(page_text)
+                                    quality_result = analyzer.analyze(page_text)
                                     page.quality_score = quality_result.score
                                     page.flagged = quality_result.flagged
                                     page.status = (
