@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-02-03)
 
 **Core value:** Produce accurate OCR text from scanned academic PDFs with minimal manual intervention, using quality-gated fallback to avoid expensive neural OCR unless needed.
-**Current focus:** Phase 14 - Cross-file Batching — IN PROGRESS
+**Current focus:** Phase 14 - Cross-file Batching — COMPLETE
 
 ## Current Position
 
-Phase: 14 of 14 (Cross-file Batching)
-Plan: 2/3 complete
-Status: In progress
-Last activity: 2026-02-05 — Completed 14-02-PLAN.md (cross-file page batching)
+Phase: 14 of 14 (Cross-file Batching) — COMPLETE
+Plan: 3/3 complete
+Status: Phase complete, verified
+Last activity: 2026-02-05 — Completed 14-03-PLAN.md (adaptive batch sizing)
 
-Progress: v1.0 [##########] | v2.0 [##########] | v2.1 [##########] 97%
+Progress: v1.0 [##########] | v2.0 [##########] | v2.1 [##########] 100%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 35 (v1.0: 17, v2.0: 8, v2.1: 13)
+- Total plans completed: 36 (v1.0: 17, v2.0: 8, v2.1: 14)
 - Average duration: ~30 min (estimate from previous milestones)
-- Total execution time: ~14.6 hours
+- Total execution time: ~14.8 hours
 
 **By Phase (v2.1):**
 
@@ -30,7 +30,7 @@ Progress: v1.0 [##########] | v2.0 [##########] | v2.1 [##########] 97%
 | 11. Benchmarking | 5/5 | 17min | 3.4min |
 | 12. Device Config | 5/5 | 13min | 2.6min |
 | 13. Model Caching | 3/3 | 16min | 5.3min |
-| 14. Batching | 2/3 | 9min | 4.5min |
+| 14. Batching | 3/3 | 16min | 5.3min |
 
 *Updated after each plan completion*
 
@@ -74,6 +74,9 @@ Recent decisions affecting v2.1:
 - batch_index sequential assignment: Enables direct mapping from combined PDF back to sources
 - Single Surya call per batch: N files with flagged pages -> 1 Surya invocation
 - Cleanup per batch not per file: GPU memory freed once after entire batch completes
+- 4GB memory pressure threshold: Leaves headroom for OS on 8GB machines
+- 0.7GB per page estimate: Conservative peak memory during detection + recognition + layout
+- 50% safety margin for batch sizing: Uses half of available memory to prevent freezes
 
 ### Pending Todos
 
@@ -93,5 +96,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-05
-Stopped at: Completed 14-02-PLAN.md, ready for 14-03
+Stopped at: Phase 14 complete, v2.1 complete
 Resume file: None
