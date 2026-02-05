@@ -438,6 +438,35 @@ async def ocr(
         return {"error": f"{e} (input_path was {input_path!r}, resolved to {resolved!r})"}
 
 
+@mcp.tool()
+async def ocr_memory_stats() -> dict:
+    """Get current GPU memory usage and model cache status.
+
+    Returns memory statistics for debugging and monitoring. Useful for
+    understanding resource utilization and diagnosing memory issues.
+
+    Returns:
+        dict with:
+        - models_loaded: bool - whether models are currently cached
+        - device: str - "mps", "cuda", or "unknown"
+        - allocated_mb: float - GPU memory currently allocated
+        - reserved_mb: float - GPU memory reserved (CUDA only, 0 for MPS)
+        - cache_ttl_seconds: float - configured cache TTL
+    """
+    from .model_cache import ModelCache, get_memory_stats
+
+    cache = ModelCache.get_instance()
+    memory = get_memory_stats()
+
+    return {
+        "models_loaded": cache.is_loaded(),
+        "device": memory.get("device", "unknown"),
+        "allocated_mb": round(memory.get("allocated_mb", 0), 2),
+        "reserved_mb": round(memory.get("reserved_mb", 0), 2),
+        "cache_ttl_seconds": cache._ttl,
+    }
+
+
 def main():
     """Entry point for the MCP server."""
     # Configure root logger with rotating file handler (10MB, 3 backups)
