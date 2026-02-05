@@ -242,6 +242,60 @@ def configure_surya_batch_sizes(
     return result
 
 
+def split_into_batches(
+    flagged_pages: list[FlaggedPage],
+    available_memory_gb: float,
+    device: str,
+) -> list[list[FlaggedPage]]:
+    """Split flagged pages into memory-safe sub-batches.
+
+    When memory is constrained, divides the pages into smaller batches
+    that can be processed without freezing the system.
+
+    Args:
+        flagged_pages: All flagged pages to process.
+        available_memory_gb: Available system memory in GB.
+        device: Device type ("mps", "cuda", "cpu").
+
+    Returns:
+        List of sub-batches, each a list of FlaggedPage objects.
+        If no splitting needed, returns single batch containing all pages.
+
+    Examples:
+        >>> pages = [FlaggedPage(...) for _ in range(50)]
+        >>> batches = split_into_batches(pages, 4.0, "mps")
+        >>> len(batches)  # Multiple small batches
+        10
+        >>> batches = split_into_batches(pages, 32.0, "mps")
+        >>> len(batches)  # Single batch (enough memory)
+        1
+    """
+    if not flagged_pages:
+        return []
+
+    total_pages = len(flagged_pages)
+    safe_batch_size = compute_safe_batch_size(total_pages, available_memory_gb, device)
+
+    # If all pages fit in one batch, return single batch
+    if safe_batch_size >= total_pages:
+        return [flagged_pages]
+
+    # Split into sub-batches of safe_batch_size
+    batches: list[list[FlaggedPage]] = []
+    for i in range(0, total_pages, safe_batch_size):
+        sub_batch = flagged_pages[i : i + safe_batch_size]
+        batches.append(sub_batch)
+
+    logger.info(
+        "Splitting %d pages into %d sub-batches of ~%d pages",
+        total_pages,
+        len(batches),
+        safe_batch_size,
+    )
+
+    return batches
+
+
 def collect_flagged_pages(
     file_results: list[FileResult], input_paths: dict[str, Path]
 ) -> list[FlaggedPage]:
