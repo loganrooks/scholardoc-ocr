@@ -363,7 +363,9 @@ def run_pipeline(
 
         if flagged_results:
             from .batch import (
+                check_memory_pressure,
                 collect_flagged_pages,
+                compute_safe_batch_size,
                 configure_surya_batch_sizes,
                 create_combined_pdf,
                 get_available_memory_gb,
@@ -399,6 +401,18 @@ def run_pipeline(
             available_mem = get_available_memory_gb()
             batch_config = configure_surya_batch_sizes("mps", available_mem)
             logger.info("Surya batch config: %s (memory: %.1fGB)", batch_config, available_mem)
+
+            # Check memory pressure before batch (BATCH-05)
+            is_constrained, current_available = check_memory_pressure()
+            if is_constrained:
+                safe_size = compute_safe_batch_size(
+                    total_flagged_pages, current_available, "mps"
+                )
+                logger.warning(
+                    "Memory constrained (%.1fGB available). Recommended batch size: %d pages",
+                    current_available,
+                    safe_size,
+                )
 
             # Load models once (via cache for MODEL-01)
             cb.on_model(ModelEvent(model_name="surya", status="loading"))
@@ -452,6 +466,9 @@ def run_pipeline(
                         file_result.device_used = device_used
                         file_result.phase_timings["surya_inference"] = surya_inference_time
                         file_result.phase_timings["surya_model_load"] = surya_model_load_time
+                        # Add batch info for observability (BATCH-05)
+                        file_result.phase_timings["surya_batch_pages"] = len(flagged_pages)
+                        file_result.phase_timings["surya_batch_files"] = len(flagged_results)
                         if fallback_occurred:
                             file_result.device_used = "cpu"
                             file_result.phase_timings["surya_fallback"] = True
