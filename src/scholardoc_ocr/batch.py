@@ -35,6 +35,79 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# Memory estimate per page during Surya processing (detection + recognition + layout).
+# Based on empirical testing: ~700MB peak per page on GPU.
+# This is conservative to prevent system freezes on memory-constrained systems.
+BATCH_SIZE_MEMORY_PER_PAGE_GB = 0.7
+
+# Memory threshold below which the system is considered constrained.
+# 4GB allows headroom for OS and other processes on 8GB machines.
+MEMORY_PRESSURE_THRESHOLD_GB = 4.0
+
+
+def check_memory_pressure() -> tuple[bool, float]:
+    """Check if system is under memory pressure.
+
+    Uses available (not total) memory to account for current system load.
+    This is important for detecting pressure when other applications are running.
+
+    Returns:
+        Tuple of (is_constrained, available_gb).
+        is_constrained is True if available memory < 4GB.
+
+    Examples:
+        >>> is_constrained, available = check_memory_pressure()
+        >>> if is_constrained:
+        ...     print(f"Low memory: {available:.1f}GB available")
+    """
+    mem = psutil.virtual_memory()
+    available_gb = mem.available / (1024**3)
+    is_constrained = available_gb < MEMORY_PRESSURE_THRESHOLD_GB
+    return is_constrained, available_gb
+
+
+def compute_safe_batch_size(
+    total_pages: int,
+    available_memory_gb: float,
+    device: str,
+) -> int:
+    """Compute safe batch size based on available memory.
+
+    Uses conservative memory estimates to prevent system freezes on
+    memory-constrained systems (especially 8GB MPS machines where GPU
+    memory pressure can freeze the system without Python OOM errors).
+
+    Args:
+        total_pages: Number of pages to process.
+        available_memory_gb: Available system memory in GB.
+        device: Device type ("mps", "cuda", "cpu").
+
+    Returns:
+        Recommended batch size (clamped to 1-100 range).
+
+    Examples:
+        >>> compute_safe_batch_size(50, 8.0, "mps")
+        5  # 8GB * 0.5 / 0.7 = ~5 pages
+        >>> compute_safe_batch_size(50, 32.0, "mps")
+        22  # 32GB * 0.5 / 0.7 = ~22 pages
+        >>> compute_safe_batch_size(50, 16.0, "cpu")
+        32  # CPU capped at 32
+    """
+    if total_pages <= 0:
+        return 0
+
+    if device == "cpu":
+        # CPU is more memory-efficient but slower, cap at 32
+        return min(total_pages, 32)
+
+    # GPU (MPS/CUDA): use 50% of available memory for safety margin
+    # This leaves room for OS, other processes, and memory fragmentation
+    safe_memory = available_memory_gb * 0.5
+    max_by_memory = int(safe_memory / BATCH_SIZE_MEMORY_PER_PAGE_GB)
+
+    # Clamp to reasonable range: minimum 1, maximum 100 or total_pages
+    return max(1, min(total_pages, max_by_memory, 100))
+
 
 @dataclass
 class FlaggedPage:
