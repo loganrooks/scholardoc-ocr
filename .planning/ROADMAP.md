@@ -83,10 +83,12 @@ Plans:
   3. Memory cleanup between documents prevents accumulation (empty_cache + gc.collect)
   4. MCP server startup can pre-load models when configured (warm pool)
   5. Memory profiling shows VRAM usage during processing (accessible via API or logs)
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 13-01: TBD
+- [ ] 13-01-PLAN.md — ModelCache module (singleton, TTL, GPU cleanup utilities)
+- [ ] 13-02-PLAN.md — Pipeline integration (use cached models, inter-document cleanup)
+- [ ] 13-03-PLAN.md — MCP server integration (lifespan hooks, ocr_memory_stats tool)
 
 ### Phase 14: Cross-File Batching
 **Goal**: Process all flagged pages across multiple files in a single Surya batch, maximizing GPU utilization.
@@ -111,5 +113,5 @@ Plans:
 | 8-10 | v2.0 | 8/8 | Complete | 2026-02-02 |
 | 11. Benchmarking Foundation | v2.1 | 5/5 | Complete | 2026-02-03 |
 | 12. Device Configuration | v2.1 | 5/5 | Complete | 2026-02-04 |
-| 13. Model Caching | v2.1 | 0/? | Not started | - |
+| 13. Model Caching | v2.1 | 0/3 | Planned | - |
 | 14. Cross-File Batching | v2.1 | 0/? | Not started | - |
