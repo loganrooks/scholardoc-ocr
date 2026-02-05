@@ -180,11 +180,12 @@ class TestTesseractOnlyPath:
 class TestSuryaWriteback:
     """Test 3 (TEST-04 / BUG-01): Surya text is written back into output .txt."""
 
-    @patch("scholardoc_ocr.surya.convert_pdf")
-    @patch("scholardoc_ocr.surya.load_models")
+    @patch("scholardoc_ocr.surya.convert_pdf_with_fallback")
+    @patch("scholardoc_ocr.model_cache.ModelCache")
+    @patch("scholardoc_ocr.batch.create_combined_pdf")
     @patch("scholardoc_ocr.pipeline.ProcessPoolExecutor")
     def test_pipeline_surya_writeback(
-        self, mock_pool_cls, mock_load, mock_convert, tmp_path: Path
+        self, mock_pool_cls, mock_create_pdf, mock_cache_cls, mock_convert, tmp_path: Path
     ):
         _create_mock_pdf(tmp_path / "input" / "doc.pdf")
         config = _make_config(tmp_path, files=["doc.pdf"], extract_text=True)
@@ -202,8 +203,13 @@ class TestSuryaWriteback:
         text_path = final_dir / "doc.txt"
         text_path.write_text("page0\n\nBAD_PAGE\n\npage2", encoding="utf-8")
 
-        mock_load.return_value = ({"model": "mock"}, "mps")  # Returns tuple now
-        mock_convert.return_value = "SURYA_ENHANCED_TEXT"
+        # Configure ModelCache mock
+        mock_cache_instance = MagicMock()
+        mock_cache_instance.get_models.return_value = ({"model": "mock"}, "mps")
+        mock_cache_cls.get_instance.return_value = mock_cache_instance
+
+        # Return Surya text (with page separator to split correctly)
+        mock_convert.return_value = ("SURYA_ENHANCED_TEXT", False)
 
         with patch(
             "scholardoc_ocr.pipeline.as_completed", return_value=iter([future])
@@ -215,18 +221,19 @@ class TestSuryaWriteback:
         assert "SURYA_ENHANCED_TEXT" in updated
         assert "BAD_PAGE" not in updated
 
-        mock_load.assert_called_once()
+        mock_cache_instance.get_models.assert_called_once()
         mock_convert.assert_called_once()
 
 
 class TestSuryaPartialFailure:
-    """Test 4: Per-file Surya failure does not crash the pipeline."""
+    """Test 4: Cross-file batch Surya failure does not crash the pipeline."""
 
-    @patch("scholardoc_ocr.surya.convert_pdf")
-    @patch("scholardoc_ocr.surya.load_models")
+    @patch("scholardoc_ocr.surya.convert_pdf_with_fallback")
+    @patch("scholardoc_ocr.model_cache.ModelCache")
+    @patch("scholardoc_ocr.batch.create_combined_pdf")
     @patch("scholardoc_ocr.pipeline.ProcessPoolExecutor")
     def test_pipeline_surya_failure_partial_success(
-        self, mock_pool_cls, mock_load, mock_convert, tmp_path: Path
+        self, mock_pool_cls, mock_create_pdf, mock_cache_cls, mock_convert, tmp_path: Path
     ):
         _create_mock_pdf(tmp_path / "input" / "fail.pdf")
         _create_mock_pdf(tmp_path / "input" / "ok.pdf")
@@ -249,11 +256,13 @@ class TestSuryaPartialFailure:
         (final_dir / "fail.txt").write_text("BAD\n\npage1", encoding="utf-8")
         (final_dir / "ok.txt").write_text("BAD\n\npage1", encoding="utf-8")
 
-        mock_load.return_value = ({"model": "mock"}, "mps")  # Returns tuple now
-        mock_convert.side_effect = [
-            SuryaError("GPU OOM"),
-            "SURYA_ENHANCED_TEXT",
-        ]
+        # Configure ModelCache mock
+        mock_cache_instance = MagicMock()
+        mock_cache_instance.get_models.return_value = ({"model": "mock"}, "mps")
+        mock_cache_cls.get_instance.return_value = mock_cache_instance
+
+        # Cross-file batch fails entirely - both files keep original text
+        mock_convert.side_effect = SuryaError("GPU OOM")
 
         with patch(
             "scholardoc_ocr.pipeline.as_completed",
@@ -265,23 +274,23 @@ class TestSuryaPartialFailure:
         assert len(batch.files) == 2
         assert all(f.success for f in batch.files)
 
-        # First file keeps original text (Surya failed)
+        # Both files keep original text since batch failed
         fail_text = (final_dir / "fail.txt").read_text(encoding="utf-8")
         assert "BAD" in fail_text
 
-        # Second file has Surya text
         ok_text = (final_dir / "ok.txt").read_text(encoding="utf-8")
-        assert "SURYA_ENHANCED_TEXT" in ok_text
+        assert "BAD" in ok_text
 
 
 class TestForceSurya:
     """Test 5: force_surya triggers Surya on all pages even if quality is good."""
 
-    @patch("scholardoc_ocr.surya.convert_pdf")
+    @patch("scholardoc_ocr.surya.convert_pdf_with_fallback")
     @patch("scholardoc_ocr.model_cache.ModelCache")
+    @patch("scholardoc_ocr.batch.create_combined_pdf")
     @patch("scholardoc_ocr.pipeline.ProcessPoolExecutor")
     def test_pipeline_force_surya(
-        self, mock_pool_cls, mock_cache_cls, mock_convert, tmp_path: Path
+        self, mock_pool_cls, mock_create_pdf, mock_cache_cls, mock_convert, tmp_path: Path
     ):
         _create_mock_pdf(tmp_path / "input" / "doc.pdf")
         config = _make_config(tmp_path, files=["doc.pdf"], force_surya=True)
@@ -302,7 +311,7 @@ class TestForceSurya:
         mock_cache_instance.get_models.return_value = ({"model": "mock"}, "mps")
         mock_cache_cls.get_instance.return_value = mock_cache_instance
 
-        mock_convert.return_value = "SURYA_FORCED"
+        mock_convert.return_value = ("SURYA_FORCED", False)
 
         with patch(
             "scholardoc_ocr.pipeline.as_completed", return_value=iter([future])
@@ -364,12 +373,19 @@ class TestPipelineConfigDefaults:
 class TestModelCacheIntegration:
     """Tests for MODEL-01 and MODEL-03: model caching and inter-document cleanup."""
 
-    @patch("scholardoc_ocr.surya.convert_pdf")
+    @patch("scholardoc_ocr.surya.convert_pdf_with_fallback")
     @patch("scholardoc_ocr.model_cache.cleanup_between_documents")
     @patch("scholardoc_ocr.model_cache.ModelCache")
+    @patch("scholardoc_ocr.batch.create_combined_pdf")
     @patch("scholardoc_ocr.pipeline.ProcessPoolExecutor")
     def test_pipeline_uses_model_cache(
-        self, mock_pool_cls, mock_cache_cls, mock_cleanup, mock_convert, tmp_path: Path
+        self,
+        mock_pool_cls,
+        mock_create_pdf,
+        mock_cache_cls,
+        mock_cleanup,
+        mock_convert,
+        tmp_path: Path,
     ):
         """Verify pipeline uses ModelCache instead of direct load_models (MODEL-01)."""
         _create_mock_pdf(tmp_path / "input" / "doc.pdf")
@@ -393,7 +409,7 @@ class TestModelCacheIntegration:
         mock_cache_instance.get_models.return_value = ({"model": "mock"}, "cpu")
         mock_cache_cls.get_instance.return_value = mock_cache_instance
 
-        mock_convert.return_value = "SURYA_TEXT"
+        mock_convert.return_value = ("SURYA_TEXT", False)
 
         with patch(
             "scholardoc_ocr.pipeline.as_completed", return_value=iter([future])
@@ -404,14 +420,21 @@ class TestModelCacheIntegration:
         mock_cache_cls.get_instance.assert_called_once()
         mock_cache_instance.get_models.assert_called_once()
 
-    @patch("scholardoc_ocr.surya.convert_pdf")
+    @patch("scholardoc_ocr.surya.convert_pdf_with_fallback")
     @patch("scholardoc_ocr.model_cache.cleanup_between_documents")
     @patch("scholardoc_ocr.model_cache.ModelCache")
+    @patch("scholardoc_ocr.batch.create_combined_pdf")
     @patch("scholardoc_ocr.pipeline.ProcessPoolExecutor")
     def test_pipeline_cleanup_between_documents(
-        self, mock_pool_cls, mock_cache_cls, mock_cleanup, mock_convert, tmp_path: Path
+        self,
+        mock_pool_cls,
+        mock_create_pdf,
+        mock_cache_cls,
+        mock_cleanup,
+        mock_convert,
+        tmp_path: Path,
     ):
-        """Verify cleanup_between_documents called after each Surya file (MODEL-03)."""
+        """Verify cleanup_between_documents called after cross-file batch (MODEL-03)."""
         # Create two test PDFs
         _create_mock_pdf(tmp_path / "input" / "doc1.pdf")
         _create_mock_pdf(tmp_path / "input" / "doc2.pdf")
@@ -442,15 +465,15 @@ class TestModelCacheIntegration:
         mock_cache_instance.get_models.return_value = ({"model": "mock"}, "cpu")
         mock_cache_cls.get_instance.return_value = mock_cache_instance
 
-        mock_convert.return_value = "SURYA_TEXT"
+        mock_convert.return_value = ("SURYA_TEXT", False)
 
         with patch(
             "scholardoc_ocr.pipeline.as_completed", return_value=iter([future1, future2])
         ):
             run_pipeline(config)
 
-        # Verify cleanup called once per file processed by Surya
-        assert mock_cleanup.call_count == 2
+        # Verify cleanup called once per cross-file batch (not per file)
+        assert mock_cleanup.call_count == 1
 
 
 class TestMetricsFixes:

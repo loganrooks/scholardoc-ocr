@@ -358,13 +358,29 @@ def run_pipeline(
             )
         )
 
-        # --- Phase 2: Sequential per-file Surya ---
+        # --- Phase 2: Cross-file batched Surya (BATCH-04) ---
         flagged_results = [r for r in file_results if config.force_surya or r.flagged_pages]
 
         if flagged_results:
+            from .batch import (
+                collect_flagged_pages,
+                configure_surya_batch_sizes,
+                create_combined_pdf,
+                get_available_memory_gb,
+                map_results_to_files,
+            )
+            from .quality import QualityAnalyzer
+            from .surya import SuryaConfig
+
+            # For force_surya mode, ensure all pages are flagged
+            if config.force_surya:
+                for fr in flagged_results:
+                    for page in fr.pages:
+                        page.flagged = True
+
             total_flagged_pages = sum(len(r.flagged_pages) for r in flagged_results)
             logger.info(
-                "Phase 2: Surya OCR — %d files, %d flagged pages",
+                "Phase 2: Surya OCR — %d files, %d flagged pages (cross-file batch)",
                 len(flagged_results),
                 total_flagged_pages,
             )
@@ -378,6 +394,12 @@ def run_pipeline(
                 )
             )
 
+            # Configure batch sizes BEFORE model loading (BATCH-02, BATCH-03)
+            # This must happen before any marker/Surya imports
+            available_mem = get_available_memory_gb()
+            batch_config = configure_surya_batch_sizes("mps", available_mem)
+            logger.info("Surya batch config: %s (memory: %.1fGB)", batch_config, available_mem)
+
             # Load models once (via cache for MODEL-01)
             cb.on_model(ModelEvent(model_name="surya", status="loading"))
             cache = ModelCache.get_instance()
@@ -385,151 +407,101 @@ def run_pipeline(
             model_dict, device_used = cache.get_models()
             mps_sync()  # Ensure GPU work completes before timing
             surya_model_load_time = time.time() - t0
-            # Note: surya_model_load_time will be ~0 on cache hit
             cb.on_model(
                 ModelEvent(model_name="surya", status="loaded", time_seconds=surya_model_load_time)
             )
 
-            surya_completed = 0
-            for file_result in flagged_results:
+            # Build input_paths mapping
+            input_paths = {p.name: p for p in input_files}
+
+            # Collect all flagged pages across all files (BATCH-04)
+            flagged_pages = collect_flagged_pages(flagged_results, input_paths)
+            logger.info(
+                "Cross-file batch: %d pages from %d files",
+                len(flagged_pages),
+                len(flagged_results),
+            )
+
+            if flagged_pages:
                 try:
-                    input_path = config.input_dir / file_result.filename
-                    if not input_path.exists():
-                        # Try files list directly
-                        input_path = next(
-                            (p for p in input_files if p.name == file_result.filename),
-                            None,
-                        )
-                        if input_path is None:
-                            logger.warning(
-                                "Cannot find source for Surya: %s",
-                                file_result.filename,
-                            )
-                            continue
+                    # Create combined PDF in work directory
+                    combined_pdf = config.output_dir / "work" / "_surya_batch.pdf"
+                    create_combined_pdf(flagged_pages, combined_pdf)
 
-                    # Get flagged page indices
-                    if config.force_surya:
-                        bad_indices = list(range(file_result.page_count))
-                    else:
-                        bad_indices = [p.page_number for p in file_result.flagged_pages]
-
-                    if not bad_indices:
-                        continue
-
-                    logger.info(
-                        "%s: running Surya on %d pages %s",
-                        file_result.filename,
-                        len(bad_indices),
-                        bad_indices,
-                    )
-
-                    # Convert with Surya (with GPU-to-CPU fallback)
-                    from .surya import SuryaConfig
-
+                    # Single Surya call on combined PDF
                     surya_cfg = SuryaConfig(langs=config.langs_surya)
                     t_inference = time.time()
                     surya_markdown, fallback_occurred = surya.convert_pdf_with_fallback(
-                        input_path,
+                        combined_pdf,
                         model_dict,
                         config=surya_cfg,
-                        page_range=bad_indices,
+                        page_range=None,  # Process all pages in combined PDF
                         strict_gpu=config.strict_gpu,
                     )
                     mps_sync()  # Ensure GPU work completes before timing
                     surya_inference_time = time.time() - t_inference
 
-                    # Update phase_timings for this file
-                    file_result.phase_timings["surya_inference"] = surya_inference_time
-
-                    # Track fallback in results for transparency
-                    if fallback_occurred:
-                        logger.warning(
-                            "%s: GPU fallback occurred, processed on CPU",
-                            file_result.filename,
-                        )
-                        # Update device_used to reflect actual device
-                        file_result.device_used = "cpu"
-                        file_result.phase_timings["surya_fallback"] = True
-
-                    # Write Surya text back to output .txt file
-                    text_path = config.output_dir / "final" / f"{input_path.stem}.txt"
-                    if text_path.exists():
-                        existing_text = text_path.read_text(encoding="utf-8")
-                        page_texts = existing_text.split("\n\n")
-
-                        for idx, page_num in enumerate(bad_indices):
-                            if page_num < len(page_texts):
-                                if idx == 0:
-                                    page_texts[page_num] = surya_markdown
-                                else:
-                                    page_texts[page_num] = ""
-
-                        text_path.write_text(
-                            _postprocess("\n\n".join(page_texts)), encoding="utf-8"
-                        )
-
-                    # Re-analyze quality for Surya-enhanced pages (BENCH-08)
-                    from .quality import QualityAnalyzer
-
+                    # Map results back to source files
                     analyzer = QualityAnalyzer(
                         config.quality_threshold, max_samples=config.max_samples
                     )
+                    map_results_to_files(flagged_pages, surya_markdown, analyzer)
 
-                    # text_path was already defined earlier in this loop
-                    # Re-extract text from the Surya output to get actual quality
-                    if text_path.exists():
-                        surya_text = text_path.read_text(encoding="utf-8")
-                        # Simple page split - pages are separated by double newline
-                        surya_page_texts = surya_text.split("\n\n")
+                    # Update file_result metadata
+                    for file_result in flagged_results:
+                        file_result.device_used = device_used
+                        file_result.phase_timings["surya_inference"] = surya_inference_time
+                        file_result.phase_timings["surya_model_load"] = surya_model_load_time
+                        if fallback_occurred:
+                            file_result.device_used = "cpu"
+                            file_result.phase_timings["surya_fallback"] = True
 
-                        for page in file_result.pages:
-                            if page.page_number in bad_indices:
-                                # Get the Surya text for this page if available
-                                if page.page_number < len(surya_page_texts):
-                                    page_text = surya_page_texts[page.page_number]
-                                    quality_result = analyzer.analyze(page_text)
-                                    page.quality_score = quality_result.score
-                                    page.flagged = quality_result.flagged
-                                    page.status = (
-                                        PageStatus.FLAGGED
-                                        if quality_result.flagged
-                                        else PageStatus.GOOD
-                                    )
-
-                                page.engine = OCREngine.SURYA
-                    else:
-                        # Fallback if text file doesn't exist - just update engine
-                        for page in file_result.pages:
-                            if page.page_number in bad_indices:
-                                page.engine = OCREngine.SURYA
-                                page.status = PageStatus.GOOD
-                                page.flagged = False
-
-                    # Track which device processed this file
-                    file_result.device_used = device_used
-
-                    surya_completed += 1
-                    cb.on_progress(
-                        ProgressEvent(
-                            phase="surya",
-                            current=surya_completed,
-                            total=len(flagged_results),
-                            filename=file_result.filename,
+                    # Update .txt files with Surya-enhanced text
+                    for file_result in flagged_results:
+                        text_path = (
+                            config.output_dir
+                            / "final"
+                            / f"{Path(file_result.filename).stem}.txt"
                         )
-                    )
+                        if text_path.exists():
+                            existing_text = text_path.read_text(encoding="utf-8")
+                            page_texts = existing_text.split("\n\n")
+                            for page in file_result.pages:
+                                if page.engine == OCREngine.SURYA and page.text:
+                                    if page.page_number < len(page_texts):
+                                        page_texts[page.page_number] = page.text
+                            text_path.write_text(
+                                _postprocess("\n\n".join(page_texts)), encoding="utf-8"
+                            )
+
+                    # Clean up combined PDF
+                    if combined_pdf.exists():
+                        combined_pdf.unlink()
+
+                    # Report progress
+                    for idx, file_result in enumerate(flagged_results, 1):
+                        cb.on_progress(
+                            ProgressEvent(
+                                phase="surya",
+                                current=idx,
+                                total=len(flagged_results),
+                                filename=file_result.filename,
+                            )
+                        )
+
                     logger.info(
-                        "%s: Surya enhancement complete (device: %s)",
-                        file_result.filename,
+                        "Cross-file Surya batch complete: %d pages in %.1fs (device: %s)",
+                        len(flagged_pages),
+                        surya_inference_time,
                         device_used,
                     )
 
-                    # Clean up GPU memory between documents (MODEL-03)
+                    # Clean up GPU memory after batch (MODEL-03)
                     cleanup_between_documents()
 
                 except Exception as e:
                     logger.warning(
-                        "%s: Surya failed, keeping Tesseract output: %s",
-                        file_result.filename,
+                        "Surya batch failed, keeping Tesseract output: %s",
                         e,
                         exc_info=True,
                     )
@@ -542,11 +514,6 @@ def run_pipeline(
                     pages_count=total_flagged_pages,
                 )
             )
-
-            # Store model load time in all files that used Surya
-            for file_result in flagged_results:
-                if "surya_inference" in file_result.phase_timings:
-                    file_result.phase_timings["surya_model_load"] = surya_model_load_time
 
         # Recompute top-level engine from per-page engines (BENCH-07)
         for file_result in file_results:
