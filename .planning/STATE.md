@@ -10,16 +10,16 @@ See: .planning/PROJECT.md (updated 2026-02-03)
 ## Current Position
 
 Phase: 14 of 14 (Cross-file Batching) — COMPLETE
-Plan: 3/3 complete
-Status: Phase complete, verified
-Last activity: 2026-02-05 — Completed 14-03-PLAN.md (adaptive batch sizing)
+Plan: 4/4 complete (includes gap closure plan)
+Status: Phase complete, all gaps closed
+Last activity: 2026-02-05 — Completed 14-04-PLAN.md (batch splitting gap closure)
 
 Progress: v1.0 [##########] | v2.0 [##########] | v2.1 [##########] 100%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 36 (v1.0: 17, v2.0: 8, v2.1: 14)
+- Total plans completed: 37 (v1.0: 17, v2.0: 8, v2.1: 15 including gap closure)
 - Average duration: ~30 min (estimate from previous milestones)
 - Total execution time: ~14.8 hours
 
@@ -30,7 +30,7 @@ Progress: v1.0 [##########] | v2.0 [##########] | v2.1 [##########] 100%
 | 11. Benchmarking | 5/5 | 17min | 3.4min |
 | 12. Device Config | 5/5 | 13min | 2.6min |
 | 13. Model Caching | 3/3 | 16min | 5.3min |
-| 14. Batching | 3/3 | 16min | 5.3min |
+| 14. Batching | 4/4 | 21min | 5.3min |
 
 *Updated after each plan completion*
 
@@ -77,6 +77,9 @@ Recent decisions affecting v2.1:
 - 4GB memory pressure threshold: Leaves headroom for OS on 8GB machines
 - 0.7GB per page estimate: Conservative peak memory during detection + recognition + layout
 - 50% safety margin for batch sizing: Uses half of available memory to prevent freezes
+- Multi-batch loop pattern: Split pages into sub-batches, process each with own Surya call
+- GPU cleanup between sub-batches: Prevent memory accumulation during multi-batch processing
+- Preserve batch_index through splitting: Original indices maintained for correct result mapping
 
 ### Pending Todos
 
@@ -96,5 +99,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-05
-Stopped at: Phase 14 complete, v2.1 complete
+Stopped at: Completed 14-04-PLAN.md (batch splitting gap closure)
 Resume file: None
