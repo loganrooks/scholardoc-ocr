@@ -7,11 +7,12 @@ requires-python = ">=3.11,<3.14"
 license = {text = "MIT"}
 
 dependencies = [
+    "cachetools>=5.0.0",
+    "marker-pdf>=1.0.0",
     "ocrmypdf>=16.0.0",
     "pymupdf>=1.24.0",
-    "marker-pdf>=1.0.0",
-    "rich>=13.0.0",
     "pytesseract>=0.3.10",
+    "rich>=13.0.0",
 ]
 
 [project.optional-dependencies]
