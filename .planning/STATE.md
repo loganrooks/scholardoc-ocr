@@ -5,21 +5,21 @@
 See: .planning/PROJECT.md (updated 2026-02-03)
 
 **Core value:** Produce accurate OCR text from scanned academic PDFs with minimal manual intervention, using quality-gated fallback to avoid expensive neural OCR unless needed.
-**Current focus:** Phase 12 - Device Configuration
+**Current focus:** Phase 13 - Model Caching
 
 ## Current Position
 
-Phase: 12 of 14 (Device Configuration) — COMPLETE
-Plan: 5/5 complete
-Status: Phase complete, verified
-Last activity: 2026-02-04 — Phase 12 verified (4/4 must-haves)
+Phase: 13 of 14 (Model Caching)
+Plan: 1/3 complete
+Status: In progress
+Last activity: 2026-02-05 — Completed 13-01-PLAN.md (ModelCache module)
 
-Progress: v1.0 [##########] | v2.0 [##########] | v2.1 [########  ] 80%
+Progress: v1.0 [##########] | v2.0 [##########] | v2.1 [#########-] 85%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 30 (v1.0: 17, v2.0: 8, v2.1: 8)
+- Total plans completed: 31 (v1.0: 17, v2.0: 8, v2.1: 9)
 - Average duration: ~30 min (estimate from previous milestones)
 - Total execution time: ~14 hours
 
@@ -29,7 +29,7 @@ Progress: v1.0 [##########] | v2.0 [##########] | v2.1 [########  ] 80%
 |-------|-------|-------|----------|
 | 11. Benchmarking | 5/5 | 17min | 3.4min |
 | 12. Device Config | 5/5 | 13min | 2.6min |
-| 13. Model Caching | - | - | - |
+| 13. Model Caching | 1/3 | 4min | 4.0min |
 | 14. Batching | - | - | - |
 
 *Updated after each plan completion*
@@ -58,6 +58,10 @@ Recent decisions affecting v2.1:
 - check_gpu_availability() lazy imports torch: Avoids loading ML deps at startup
 - strict_gpu enforcement deferred to inference: Flag stored in config, enforced in convert_pdf_with_fallback()
 - OOM recovery outside except block: GPU memory cleared after exception handling for proper garbage collection
+- TTLCache maxsize=1: Only one model set cached at a time (Surya models too large for multiple)
+- 30 minute default TTL: Balance between memory retention and reload frequency
+- SCHOLARDOC_MODEL_TTL env var: Runtime TTL override without code changes
+- Load outside lock pattern: Model loading (30-60s) doesn't block other threads
 
 ### Pending Todos
 
@@ -76,6 +80,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-02-04
-Stopped at: Phase 12 complete, verified, ready for Phase 13
+Last session: 2026-02-05
+Stopped at: Completed 13-01-PLAN.md (ModelCache module)
 Resume file: None
