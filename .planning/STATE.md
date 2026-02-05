@@ -10,16 +10,16 @@ See: .planning/PROJECT.md (updated 2026-02-03)
 ## Current Position
 
 Phase: 13 of 14 (Model Caching)
-Plan: 1/3 complete
-Status: In progress
-Last activity: 2026-02-05 — Completed 13-01-PLAN.md (ModelCache module)
+Plan: 3/3 complete
+Status: Phase complete
+Last activity: 2026-02-05 — Completed 13-03-PLAN.md (MCP Lifespan Integration)
 
-Progress: v1.0 [##########] | v2.0 [##########] | v2.1 [#########-] 85%
+Progress: v1.0 [##########] | v2.0 [##########] | v2.1 [##########] 90%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 31 (v1.0: 17, v2.0: 8, v2.1: 9)
+- Total plans completed: 33 (v1.0: 17, v2.0: 8, v2.1: 11)
 - Average duration: ~30 min (estimate from previous milestones)
 - Total execution time: ~14 hours
 
@@ -29,7 +29,7 @@ Progress: v1.0 [##########] | v2.0 [##########] | v2.1 [#########-] 85%
 |-------|-------|-------|----------|
 | 11. Benchmarking | 5/5 | 17min | 3.4min |
 | 12. Device Config | 5/5 | 13min | 2.6min |
-| 13. Model Caching | 1/3 | 4min | 4.0min |
+| 13. Model Caching | 3/3 | 12min | 4.0min |
 | 14. Batching | - | - | - |
 
 *Updated after each plan completion*
@@ -62,6 +62,8 @@ Recent decisions affecting v2.1:
 - 30 minute default TTL: Balance between memory retention and reload frequency
 - SCHOLARDOC_MODEL_TTL env var: Runtime TTL override without code changes
 - Load outside lock pattern: Model loading (30-60s) doesn't block other threads
+- Lazy import ModelCache within lifespan to avoid loading ML deps at server import
+- Accessing cache._ttl for debugging is acceptable within same package
 
 ### Pending Todos
 
@@ -81,5 +83,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-05
-Stopped at: Completed 13-01-PLAN.md (ModelCache module)
+Stopped at: Completed 13-03-PLAN.md (MCP Lifespan Integration)
 Resume file: None
