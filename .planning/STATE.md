@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-02-03)
 ## Current Position
 
 Phase: 14 of 14 (Cross-file Batching)
-Plan: 1/3 complete
+Plan: 2/3 complete
 Status: In progress
-Last activity: 2026-02-05 — Completed 14-01-PLAN.md (batch configuration infrastructure)
+Last activity: 2026-02-05 — Completed 14-02-PLAN.md (cross-file page batching)
 
-Progress: v1.0 [##########] | v2.0 [##########] | v2.1 [##########] 94%
+Progress: v1.0 [##########] | v2.0 [##########] | v2.1 [##########] 97%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 34 (v1.0: 17, v2.0: 8, v2.1: 12)
+- Total plans completed: 35 (v1.0: 17, v2.0: 8, v2.1: 13)
 - Average duration: ~30 min (estimate from previous milestones)
-- Total execution time: ~14.5 hours
+- Total execution time: ~14.6 hours
 
 **By Phase (v2.1):**
 
@@ -30,7 +30,7 @@ Progress: v1.0 [##########] | v2.0 [##########] | v2.1 [##########] 94%
 | 11. Benchmarking | 5/5 | 17min | 3.4min |
 | 12. Device Config | 5/5 | 13min | 2.6min |
 | 13. Model Caching | 3/3 | 16min | 5.3min |
-| 14. Batching | 1/3 | 3min | 3.0min |
+| 14. Batching | 2/3 | 9min | 4.5min |
 
 *Updated after each plan completion*
 
@@ -70,6 +70,10 @@ Recent decisions affecting v2.1:
 - psutil for memory detection: Cross-platform, lightweight, already common in Python ecosystem
 - Memory tier boundaries: 8GB (conservative), 16GB (moderate), 32GB+ (aggressive) for batch sizing
 - setdefault pattern for batch sizes: Allows user env var overrides without code changes
+- Heuristic text splitting: Horizontal rules + triple newlines, fallback to first-page assignment
+- batch_index sequential assignment: Enables direct mapping from combined PDF back to sources
+- Single Surya call per batch: N files with flagged pages -> 1 Surya invocation
+- Cleanup per batch not per file: GPU memory freed once after entire batch completes
 
 ### Pending Todos
 
@@ -89,5 +93,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-05
-Stopped at: Completed 14-01-PLAN.md, ready for 14-02
+Stopped at: Completed 14-02-PLAN.md, ready for 14-03
 Resume file: None
