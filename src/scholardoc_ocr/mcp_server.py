@@ -5,9 +5,11 @@ from __future__ import annotations
 import asyncio
 import logging
 import logging.handlers
+import os
 import time
 import traceback
 import uuid
+from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -45,7 +47,38 @@ def _truncate_traceback(max_frames: int = 3) -> str:
 
 logger = logging.getLogger(__name__)
 
-mcp = FastMCP("scholardoc-ocr")
+
+@asynccontextmanager
+async def mcp_lifespan(server: FastMCP):
+    """Lifespan hook for model warm-loading and cleanup.
+
+    Environment variables:
+        SCHOLARDOC_WARM_LOAD: Set to "true" to pre-load models at startup.
+        SCHOLARDOC_MODEL_TTL: Model cache TTL in seconds (default 1800).
+    """
+    from .model_cache import ModelCache
+
+    warm_load = os.environ.get("SCHOLARDOC_WARM_LOAD", "false").lower() == "true"
+    ttl = float(os.environ.get("SCHOLARDOC_MODEL_TTL", "1800"))
+
+    if warm_load:
+        _log("Warm-loading models (SCHOLARDOC_WARM_LOAD=true)")
+        cache = ModelCache.get_instance(ttl_seconds=ttl)
+        cache.get_models()  # Triggers load
+        _log("Models warm-loaded successfully")
+    else:
+        _log("Skipping warm-load (SCHOLARDOC_WARM_LOAD not set)")
+
+    yield  # Server runs
+
+    # Cleanup on shutdown
+    _log("MCP server shutting down, evicting model cache")
+    cache = ModelCache.get_instance()
+    cache.evict()
+    _log("Model cache evicted")
+
+
+mcp = FastMCP("scholardoc-ocr", lifespan=mcp_lifespan)
 
 
 # ---------------------------------------------------------------------------
