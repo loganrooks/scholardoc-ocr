@@ -235,10 +235,7 @@ def create_combined_pdf(flagged_pages: list[FlaggedPage], output_path: Path) -> 
         >>> # Combined PDF has 2 pages in batch_index order
     """
     if not flagged_pages:
-        logger.warning("No flagged pages to combine, creating empty PDF")
-        result_doc = fitz.open()
-        result_doc.save(output_path)
-        result_doc.close()
+        logger.warning("No flagged pages to combine, skipping PDF creation")
         return
 
     # Ensure output directory exists
