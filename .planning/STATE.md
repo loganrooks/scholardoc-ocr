@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-02-03)
 
 **Core value:** Produce accurate OCR text from scanned academic PDFs with minimal manual intervention, using quality-gated fallback to avoid expensive neural OCR unless needed.
-**Current focus:** Phase 13 - Model Caching — COMPLETE
+**Current focus:** Phase 14 - Cross-file Batching — IN PROGRESS
 
 ## Current Position
 
-Phase: 13 of 14 (Model Caching) — COMPLETE
-Plan: 3/3 complete
-Status: Phase complete, verified
-Last activity: 2026-02-05 — Phase 13 verified (5/5 must-haves)
+Phase: 14 of 14 (Cross-file Batching)
+Plan: 1/3 complete
+Status: In progress
+Last activity: 2026-02-05 — Completed 14-01-PLAN.md (batch configuration infrastructure)
 
-Progress: v1.0 [##########] | v2.0 [##########] | v2.1 [#########-] 90%
+Progress: v1.0 [##########] | v2.0 [##########] | v2.1 [##########] 94%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 33 (v1.0: 17, v2.0: 8, v2.1: 11)
+- Total plans completed: 34 (v1.0: 17, v2.0: 8, v2.1: 12)
 - Average duration: ~30 min (estimate from previous milestones)
-- Total execution time: ~14 hours
+- Total execution time: ~14.5 hours
 
 **By Phase (v2.1):**
 
@@ -30,7 +30,7 @@ Progress: v1.0 [##########] | v2.0 [##########] | v2.1 [#########-] 90%
 | 11. Benchmarking | 5/5 | 17min | 3.4min |
 | 12. Device Config | 5/5 | 13min | 2.6min |
 | 13. Model Caching | 3/3 | 16min | 5.3min |
-| 14. Batching | - | - | - |
+| 14. Batching | 1/3 | 3min | 3.0min |
 
 *Updated after each plan completion*
 
@@ -67,6 +67,9 @@ Recent decisions affecting v2.1:
 - ModelCache mock pattern: Mock at scholardoc_ocr.model_cache module level for tests
 - MCP lifespan for warm loading: SCHOLARDOC_WARM_LOAD=true env var triggers pre-loading at startup
 - Memory stats via MCP tool: ocr_memory_stats returns device, allocated_mb, reserved_mb, cache_ttl_seconds
+- psutil for memory detection: Cross-platform, lightweight, already common in Python ecosystem
+- Memory tier boundaries: 8GB (conservative), 16GB (moderate), 32GB+ (aggressive) for batch sizing
+- setdefault pattern for batch sizes: Allows user env var overrides without code changes
 
 ### Pending Todos
 
@@ -86,5 +89,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-05
-Stopped at: Phase 13 complete, verified, ready for Phase 14
+Stopped at: Completed 14-01-PLAN.md, ready for 14-02
 Resume file: None
