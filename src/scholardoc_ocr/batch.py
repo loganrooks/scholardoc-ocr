@@ -9,6 +9,7 @@ This module provides:
 - Memory detection (system RAM for MPS, VRAM for CUDA)
 - Hardware-aware batch size configuration
 - FlaggedPage dataclass for tracking page origins in cross-file batching
+- Cross-file batching functions for aggregating flagged pages
 
 All torch imports are lazy (inside function bodies) to avoid loading ML
 dependencies at module import time.
@@ -18,13 +19,18 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import fitz
 import psutil
 
+from .types import OCREngine, PageStatus
+
 if TYPE_CHECKING:
+    from .quality import QualityAnalyzer
     from .types import FileResult
 
 logger = logging.getLogger(__name__)
@@ -161,3 +167,191 @@ def configure_surya_batch_sizes(
     )
 
     return result
+
+
+def collect_flagged_pages(
+    file_results: list[FileResult], input_paths: dict[str, Path]
+) -> list[FlaggedPage]:
+    """Aggregate flagged pages from all file results for cross-file batching.
+
+    Collects all flagged pages from multiple file results into a single list,
+    assigning sequential batch indices for combined PDF creation.
+
+    Args:
+        file_results: List of FileResult objects containing flagged pages.
+        input_paths: Mapping from filename to input Path.
+
+    Returns:
+        List of FlaggedPage objects ordered for combined PDF creation,
+        with batch_index assigned sequentially (0, 1, 2, ...).
+
+    Examples:
+        >>> file_results = [fr1, fr2]  # 3 flagged pages each
+        >>> input_paths = {"doc1.pdf": Path("doc1.pdf"), "doc2.pdf": Path("doc2.pdf")}
+        >>> pages = collect_flagged_pages(file_results, input_paths)
+        >>> len(pages)
+        6
+        >>> [p.batch_index for p in pages]
+        [0, 1, 2, 3, 4, 5]
+    """
+    pages: list[FlaggedPage] = []
+    for fr in file_results:
+        input_path = input_paths.get(fr.filename)
+        if input_path is None:
+            logger.warning("No input path for %s, skipping flagged pages", fr.filename)
+            continue
+
+        for page in fr.flagged_pages:
+            pages.append(
+                FlaggedPage(
+                    file_result=fr,
+                    page_number=page.page_number,
+                    input_path=input_path,
+                    batch_index=len(pages),
+                )
+            )
+
+    logger.debug("Collected %d flagged pages from %d files", len(pages), len(file_results))
+    return pages
+
+
+def create_combined_pdf(flagged_pages: list[FlaggedPage], output_path: Path) -> None:
+    """Create a combined PDF containing all flagged pages for batch processing.
+
+    Extracts individual pages from source PDFs and combines them into a single
+    PDF file, maintaining the order specified by batch_index.
+
+    Args:
+        flagged_pages: List of FlaggedPage objects to combine.
+        output_path: Path where the combined PDF will be saved.
+
+    Note:
+        The combined PDF page order matches the batch_index order exactly.
+        This is critical for mapping Surya results back to source files.
+
+    Examples:
+        >>> pages = [FlaggedPage(..., batch_index=0), FlaggedPage(..., batch_index=1)]
+        >>> create_combined_pdf(pages, Path("/tmp/combined.pdf"))
+        >>> # Combined PDF has 2 pages in batch_index order
+    """
+    if not flagged_pages:
+        logger.warning("No flagged pages to combine, creating empty PDF")
+        result_doc = fitz.open()
+        result_doc.save(output_path)
+        result_doc.close()
+        return
+
+    # Ensure output directory exists
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    result_doc = fitz.open()
+
+    # Sort by batch_index to ensure correct order
+    sorted_pages = sorted(flagged_pages, key=lambda p: p.batch_index)
+
+    for page in sorted_pages:
+        try:
+            with fitz.open(page.input_path) as source:
+                result_doc.insert_pdf(
+                    source,
+                    from_page=page.page_number,
+                    to_page=page.page_number,
+                )
+        except Exception as exc:
+            logger.error(
+                "Failed to extract page %d from %s: %s",
+                page.page_number,
+                page.input_path,
+                exc,
+            )
+            raise
+
+    result_doc.save(output_path)
+    result_doc.close()
+    logger.debug("Created combined PDF with %d pages at %s", len(flagged_pages), output_path)
+
+
+def split_markdown_by_pages(markdown: str, page_count: int) -> list[str]:
+    """Split Surya markdown output into per-page text.
+
+    Uses heuristics to split Marker's markdown output since it doesn't provide
+    explicit page markers. Tries horizontal rules first, then triple newlines,
+    falling back to assigning all text to the first page.
+
+    Args:
+        markdown: The full markdown text from Surya/Marker.
+        page_count: Expected number of pages.
+
+    Returns:
+        List of exactly page_count strings, one per page.
+        Some may be empty if splitting produces fewer parts than pages.
+
+    Examples:
+        >>> split_markdown_by_pages("page1\\n---\\npage2", 2)
+        ['page1', 'page2']
+        >>> split_markdown_by_pages("no separators", 3)
+        ['no separators', '', '']
+    """
+    if page_count == 0:
+        return []
+    if page_count == 1:
+        return [markdown]
+
+    # Try horizontal rule splits first (Marker often inserts these)
+    parts = re.split(r"\n-{3,}\n", markdown)
+    if len(parts) >= page_count:
+        return parts[:page_count]
+
+    # Try triple newline splits (page break heuristic)
+    parts = re.split(r"\n{3,}", markdown)
+    if len(parts) >= page_count:
+        return parts[:page_count]
+
+    # Fallback: first page gets all text, rest empty
+    result = [markdown] + [""] * (page_count - 1)
+    return result
+
+
+def map_results_to_files(
+    flagged_pages: list[FlaggedPage],
+    surya_text: str,
+    analyzer: QualityAnalyzer,
+) -> None:
+    """Map Surya batch results back to source file results.
+
+    Splits the combined Surya output and updates each source FileResult's
+    PageResult with the corresponding text, quality score, and engine.
+
+    Args:
+        flagged_pages: List of FlaggedPage objects (with batch_index).
+        surya_text: Combined markdown output from Surya.
+        analyzer: QualityAnalyzer for scoring the text.
+
+    Note:
+        This function mutates the file_result.pages in place. After calling,
+        each flagged page will have:
+        - text: The per-page text from Surya
+        - engine: OCREngine.SURYA
+        - quality_score: Score from analyzer
+        - flagged: True if score < threshold
+        - status: GOOD or FLAGGED based on score
+
+    Examples:
+        >>> map_results_to_files(flagged_pages, surya_markdown, analyzer)
+        >>> # flagged_pages[0].file_result.pages[N] now has Surya text
+    """
+    page_texts = split_markdown_by_pages(surya_text, len(flagged_pages))
+
+    for fp in flagged_pages:
+        text = page_texts[fp.batch_index]
+        result = analyzer.analyze(text)
+
+        # Update the PageResult in the source FileResult
+        page_result = fp.file_result.pages[fp.page_number]
+        page_result.text = text
+        page_result.engine = OCREngine.SURYA
+        page_result.quality_score = result.score
+        page_result.flagged = result.score < analyzer.threshold
+        page_result.status = PageStatus.GOOD if not page_result.flagged else PageStatus.FLAGGED
+
+    logger.debug("Mapped %d Surya results back to source files", len(flagged_pages))
