@@ -5,13 +5,13 @@
 See: .planning/PROJECT.md (updated 2026-02-03)
 
 **Core value:** Produce accurate OCR text from scanned academic PDFs with minimal manual intervention, using quality-gated fallback to avoid expensive neural OCR unless needed.
-**Current focus:** Phase 14 - Cross-file Batching — COMPLETE
+**Current focus:** v2.1 Performance milestone — COMPLETE
 
 ## Current Position
 
 Phase: 14 of 14 (Cross-file Batching) — COMPLETE
 Plan: 4/4 complete (includes gap closure plan)
-Status: Phase complete, all gaps closed
+Status: Milestone complete, verified
 Last activity: 2026-02-05 — Completed 14-04-PLAN.md (batch splitting gap closure)
 
 Progress: v1.0 [##########] | v2.0 [##########] | v2.1 [##########] 100%
@@ -98,6 +98,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-02-05
-Stopped at: Completed 14-04-PLAN.md (batch splitting gap closure)
+Last session: 2026-02-04
+Stopped at: v2.1 milestone complete
 Resume file: None

@@ -4,7 +4,7 @@
 
 - v1.0 MVP - Phases 1-7 (shipped 2026-02-02)
 - v2.0 Post-Processing + Robustness - Phases 8-10 (shipped 2026-02-02)
-- v2.1 Performance - Phases 11-14 (in progress)
+- v2.1 Performance - Phases 11-14 (shipped 2026-02-04)
 
 ## Phases
 
@@ -22,14 +22,14 @@ See .planning/milestones/v2.0-ROADMAP.md for v2.0 details. 3 phases, 8 plans, 20
 
 </details>
 
-### v2.1 Performance (In Progress)
+### v2.1 Performance (Complete)
 
 **Milestone Goal:** Optimize Surya OCR performance on Apple Silicon through MPS acceleration, model caching, and cross-file batching. Expected cumulative improvement: 5-15x for multi-file batches.
 
 - [x] **Phase 11: Benchmarking Foundation & Metrics Fixes** - Establish baseline measurements, fix timing/metadata bugs
 - [x] **Phase 12: Device Configuration** - MPS device selection and validation
 - [x] **Phase 13: Model Caching** - Persist loaded models across MCP requests
-- [ ] **Phase 14: Cross-File Batching** - Aggregate flagged pages across all files
+- [x] **Phase 14: Cross-File Batching** - Aggregate flagged pages across all files
 
 ## Phase Details
 
@@ -106,7 +106,7 @@ Plans:
 - [x] 14-01-PLAN.md — Batch configuration infrastructure (memory detection, env var setup, FlaggedPage)
 - [x] 14-02-PLAN.md — Cross-file batching (combined PDF, single Surya call, result mapping)
 - [x] 14-03-PLAN.md — Adaptive batch sizing (memory pressure monitoring, conservative defaults)
-- [ ] 14-04-PLAN.md — Gap closure: actual batch splitting when memory constrained
+- [x] 14-04-PLAN.md — Gap closure: actual batch splitting when memory constrained
 
 ## Progress
 
@@ -117,4 +117,4 @@ Plans:
 | 11. Benchmarking Foundation | v2.1 | 5/5 | Complete | 2026-02-03 |
 | 12. Device Configuration | v2.1 | 5/5 | Complete | 2026-02-04 |
 | 13. Model Caching | v2.1 | 3/3 | Complete | 2026-02-05 |
-| 14. Cross-File Batching | v2.1 | 3/4 | Gap closure | - |
+| 14. Cross-File Batching | v2.1 | 4/4 | Complete | 2026-02-04 |
