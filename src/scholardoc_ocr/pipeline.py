@@ -370,6 +370,7 @@ def run_pipeline(
                 create_combined_pdf,
                 get_available_memory_gb,
                 map_results_to_files,
+                split_into_batches,
             )
             from .quality import QualityAnalyzer
             from .surya import SuryaConfig
@@ -430,36 +431,73 @@ def run_pipeline(
 
             # Collect all flagged pages across all files (BATCH-04)
             flagged_pages = collect_flagged_pages(flagged_results, input_paths)
+
+            # Split into batches based on memory (BATCH-05 gap closure)
+            batches = split_into_batches(
+                flagged_pages, current_available, device_used or "mps"
+            )
             logger.info(
-                "Cross-file batch: %d pages from %d files",
+                "Cross-file batch: %d pages from %d files in %d sub-batch(es)",
                 len(flagged_pages),
                 len(flagged_results),
+                len(batches),
             )
 
             if flagged_pages:
                 try:
-                    # Create combined PDF in work directory
-                    combined_pdf = config.output_dir / "work" / "_surya_batch.pdf"
-                    create_combined_pdf(flagged_pages, combined_pdf)
-
-                    # Single Surya call on combined PDF
                     surya_cfg = SuryaConfig(langs=config.langs_surya)
-                    t_inference = time.time()
-                    surya_markdown, fallback_occurred = surya.convert_pdf_with_fallback(
-                        combined_pdf,
-                        model_dict,
-                        config=surya_cfg,
-                        page_range=None,  # Process all pages in combined PDF
-                        strict_gpu=config.strict_gpu,
-                    )
-                    mps_sync()  # Ensure GPU work completes before timing
-                    surya_inference_time = time.time() - t_inference
-
-                    # Map results back to source files
                     analyzer = QualityAnalyzer(
                         config.quality_threshold, max_samples=config.max_samples
                     )
-                    map_results_to_files(flagged_pages, surya_markdown, analyzer)
+
+                    # Process each sub-batch separately (BATCH-05)
+                    total_inference_time = 0.0
+                    any_fallback = False
+                    for batch_idx, sub_batch in enumerate(batches):
+                        if not sub_batch:
+                            continue
+
+                        logger.info(
+                            "Processing sub-batch %d/%d (%d pages)",
+                            batch_idx + 1,
+                            len(batches),
+                            len(sub_batch),
+                        )
+
+                        # Create combined PDF for this sub-batch
+                        combined_pdf = (
+                            config.output_dir / "work" / f"_surya_batch_{batch_idx}.pdf"
+                        )
+                        create_combined_pdf(sub_batch, combined_pdf)
+
+                        # Surya call for this sub-batch
+                        t_inference = time.time()
+                        surya_markdown, fallback_occurred = surya.convert_pdf_with_fallback(
+                            combined_pdf,
+                            model_dict,
+                            config=surya_cfg,
+                            page_range=None,
+                            strict_gpu=config.strict_gpu,
+                        )
+                        mps_sync()
+                        batch_inference_time = time.time() - t_inference
+                        total_inference_time += batch_inference_time
+
+                        if fallback_occurred:
+                            any_fallback = True
+
+                        # Map results back for this sub-batch
+                        map_results_to_files(sub_batch, surya_markdown, analyzer)
+
+                        # Clean up this sub-batch's combined PDF
+                        if combined_pdf.exists():
+                            combined_pdf.unlink()
+
+                        # Clean up GPU memory between sub-batches
+                        if len(batches) > 1:
+                            cleanup_between_documents()
+
+                    surya_inference_time = total_inference_time
 
                     # Update file_result metadata
                     for file_result in flagged_results:
@@ -469,7 +507,8 @@ def run_pipeline(
                         # Add batch info for observability (BATCH-05)
                         file_result.phase_timings["surya_batch_pages"] = len(flagged_pages)
                         file_result.phase_timings["surya_batch_files"] = len(flagged_results)
-                        if fallback_occurred:
+                        file_result.phase_timings["surya_sub_batches"] = len(batches)
+                        if any_fallback:
                             file_result.device_used = "cpu"
                             file_result.phase_timings["surya_fallback"] = True
 
@@ -491,10 +530,6 @@ def run_pipeline(
                                 _postprocess("\n\n".join(page_texts)), encoding="utf-8"
                             )
 
-                    # Clean up combined PDF
-                    if combined_pdf.exists():
-                        combined_pdf.unlink()
-
                     # Report progress
                     for idx, file_result in enumerate(flagged_results, 1):
                         cb.on_progress(
@@ -507,14 +542,18 @@ def run_pipeline(
                         )
 
                     logger.info(
-                        "Cross-file Surya batch complete: %d pages in %.1fs (device: %s)",
+                        "Cross-file Surya batch complete: %d pages in %.1fs "
+                        "(%d sub-batches, device: %s)",
                         len(flagged_pages),
                         surya_inference_time,
+                        len(batches),
                         device_used,
                     )
 
-                    # Clean up GPU memory after batch (MODEL-03)
-                    cleanup_between_documents()
+                    # Clean up GPU memory after all batches (MODEL-03)
+                    # Only needed if single batch (cleanup already done between multiple)
+                    if len(batches) == 1:
+                        cleanup_between_documents()
 
                 except Exception as e:
                     logger.warning(
