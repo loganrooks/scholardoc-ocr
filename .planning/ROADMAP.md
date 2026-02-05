@@ -22,91 +22,12 @@ See .planning/milestones/v2.0-ROADMAP.md for v2.0 details. 3 phases, 8 plans, 20
 
 </details>
 
-### v2.1 Performance (Complete)
+<details>
+<summary>v2.1 Performance (Phases 11-14) - SHIPPED 2026-02-04</summary>
 
-**Milestone Goal:** Optimize Surya OCR performance on Apple Silicon through MPS acceleration, model caching, and cross-file batching. Expected cumulative improvement: 5-15x for multi-file batches.
+See .planning/milestones/v2.1-ROADMAP.md for v2.1 details. 4 phases, 17 plans, 22 requirements delivered.
 
-- [x] **Phase 11: Benchmarking Foundation & Metrics Fixes** - Establish baseline measurements, fix timing/metadata bugs
-- [x] **Phase 12: Device Configuration** - MPS device selection and validation
-- [x] **Phase 13: Model Caching** - Persist loaded models across MCP requests
-- [x] **Phase 14: Cross-File Batching** - Aggregate flagged pages across all files
-
-## Phase Details
-
-### Phase 11: Benchmarking Foundation & Metrics Fixes
-**Goal**: Establish baseline performance measurements and fix timing/metadata bugs that would invalidate benchmarks.
-**Depends on**: Nothing (first phase of v2.1)
-**Requirements**: BENCH-01, BENCH-02, BENCH-03, BENCH-04, BENCH-05, BENCH-06, BENCH-07, BENCH-08
-**Success Criteria** (what must be TRUE):
-  1. Running `pytest --benchmark-only` produces statistical performance data for model loading and OCR processing
-  2. Benchmark results include proper GPU synchronization (torch.mps.synchronize) for accurate MPS timing
-  3. Memory profiling with memray generates flame graphs showing allocation patterns
-  4. CI pipeline fails if performance regresses beyond threshold
-  5. Hardware-specific profiles (M1/M2/M3) can be selected for appropriate baselines
-  6. Surya model load time and inference time appear in phase_timings
-  7. Top-level engine field is "mixed" when some pages used Surya, "surya" when all did
-  8. Quality scores are re-evaluated after Surya processing (both scores preserved if fallback occurred)
-**Plans**: 5 plans
-
-Plans:
-- [x] 11-01-PLAN.md — Benchmark infrastructure (dependencies, timing module, fixtures)
-- [x] 11-02-PLAN.md — Benchmark tests (model loading, inference, memory)
-- [x] 11-03-PLAN.md — OCREngine.MIXED enum and compute_engine_from_pages
-- [x] 11-04-PLAN.md — Pipeline fixes (Surya timing, engine field, quality re-eval)
-- [x] 11-05-PLAN.md — CI workflow for regression detection
-
-### Phase 12: Device Configuration
-**Goal**: Enable explicit MPS device selection with validation and fallback for Apple Silicon GPU acceleration.
-**Depends on**: Phase 11 (need benchmarks to validate improvements)
-**Requirements**: DEV-01, DEV-02, DEV-03, DEV-04
-**Success Criteria** (what must be TRUE):
-  1. Pipeline explicitly uses MPS device on Apple Silicon (visible in logs: "Using device: mps")
-  2. Startup validates MPS availability and shows actionable error if unavailable
-  3. Processing automatically falls back to CPU when MPS fails mid-job
-  4. MPS bugs are handled via full-CPU fallback (detection/recognition split deferred - Marker API uses unified device)
-**Plans**: 5 plans
-
-Plans:
-- [x] 12-01-PLAN.md — Device detection infrastructure (DeviceType, DeviceInfo, detect_device)
-- [x] 12-02-PLAN.md — FileResult device tracking (device_used field)
-- [x] 12-03-PLAN.md — Surya and pipeline integration (use device detection, track device in results)
-- [x] 12-04-PLAN.md — CLI --strict-gpu flag and startup validation (check_gpu_availability)
-- [x] 12-05-PLAN.md — Inference-time GPU-to-CPU fallback (convert_pdf_with_fallback)
-
-### Phase 13: Model Caching
-**Goal**: Eliminate repeated model loading overhead for MCP server by persisting loaded Surya models across requests.
-**Depends on**: Phase 12 (need device configuration for correct model loading)
-**Requirements**: MODEL-01, MODEL-02, MODEL-03, MODEL-04, MODEL-05
-**Success Criteria** (what must be TRUE):
-  1. Second MCP OCR request processes without 30-60s model loading delay
-  2. Cached models evict automatically after configurable TTL (default 30 minutes)
-  3. Memory cleanup between documents prevents accumulation (empty_cache + gc.collect)
-  4. MCP server startup can pre-load models when configured (warm pool)
-  5. Memory profiling shows VRAM usage during processing (accessible via API or logs)
-**Plans**: 3 plans
-
-Plans:
-- [x] 13-01-PLAN.md — ModelCache module (singleton, TTL, GPU cleanup utilities)
-- [x] 13-02-PLAN.md — Pipeline integration (use cached models, inter-document cleanup)
-- [x] 13-03-PLAN.md — MCP server integration (lifespan hooks, ocr_memory_stats tool)
-
-### Phase 14: Cross-File Batching
-**Goal**: Process all flagged pages across multiple files in a single Surya batch, maximizing GPU utilization.
-**Depends on**: Phase 13 (need model caching for efficient batch processing)
-**Requirements**: BATCH-01, BATCH-02, BATCH-03, BATCH-04, BATCH-05
-**Success Criteria** (what must be TRUE):
-  1. Processing 5 files with 10 flagged pages each produces one Surya batch of 50 pages (not 5 batches)
-  2. Batch size is configurable via environment variables (RECOGNITION_BATCH_SIZE, DETECTOR_BATCH_SIZE)
-  3. Default batch sizes adjust based on available memory (smaller on 8GB, larger on 32GB+)
-  4. Surya results map back correctly to source files (per-file, per-page)
-  5. Batch size adapts if memory pressure detected during processing
-**Plans**: 4 plans
-
-Plans:
-- [x] 14-01-PLAN.md — Batch configuration infrastructure (memory detection, env var setup, FlaggedPage)
-- [x] 14-02-PLAN.md — Cross-file batching (combined PDF, single Surya call, result mapping)
-- [x] 14-03-PLAN.md — Adaptive batch sizing (memory pressure monitoring, conservative defaults)
-- [x] 14-04-PLAN.md — Gap closure: actual batch splitting when memory constrained
+</details>
 
 ## Progress
 
@@ -114,7 +35,4 @@ Plans:
 |-------|-----------|----------------|--------|-----------|
 | 1-7 | v1.0 | 17/17 | Complete | 2026-02-02 |
 | 8-10 | v2.0 | 8/8 | Complete | 2026-02-02 |
-| 11. Benchmarking Foundation | v2.1 | 5/5 | Complete | 2026-02-03 |
-| 12. Device Configuration | v2.1 | 5/5 | Complete | 2026-02-04 |
-| 13. Model Caching | v2.1 | 3/3 | Complete | 2026-02-05 |
-| 14. Cross-File Batching | v2.1 | 4/4 | Complete | 2026-02-04 |
+| 11-14 | v2.1 | 17/17 | Complete | 2026-02-04 |

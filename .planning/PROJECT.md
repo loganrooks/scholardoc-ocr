@@ -2,7 +2,7 @@
 
 ## What This Is
 
-A hybrid OCR pipeline for academic texts that uses fast Tesseract OCR first, then falls back to Surya/Marker neural OCR only on pages that fail multi-signal quality analysis. Designed for humanities scholars processing scanned philosophical, theological, historical, and classical texts in multiple languages (English, French, German, Greek, Latin). Usable as a CLI tool, Python library, or MCP tool for Claude Desktop.
+A hybrid OCR pipeline for academic texts that uses fast Tesseract OCR first, then falls back to Surya/Marker neural OCR only on pages that fail multi-signal quality analysis. Optimized for Apple Silicon with MPS GPU acceleration, model caching, and cross-file batching. Designed for humanities scholars processing scanned philosophical, theological, historical, and classical texts in multiple languages (English, French, German, Greek, Latin). Usable as a CLI tool, Python library, or MCP tool for Claude Desktop.
 
 ## Core Value
 
@@ -53,16 +53,16 @@ Produce accurate OCR text from scanned academic PDFs with minimal manual interve
 - ✓ MCP async job handling (ocr_async/ocr_status) — v2.0
 - ✓ MCP progress events — v2.0
 
+- ✓ Explicit MPS device selection for Apple Silicon GPU acceleration — v2.1
+- ✓ Cross-file page batching (collect flagged pages across files, process as one batch) — v2.1
+- ✓ Improved Surya parallelization and resource utilization — v2.1
+- ✓ Memory optimization to reduce peak usage during Surya processing — v2.1
+- ✓ Model caching to persist loaded models across MCP calls — v2.1
+- ✓ Benchmarking infrastructure to measure and validate improvements — v2.1
+
 ### Active
 
-**v2.1 Performance — Surya optimization for Apple Silicon**
-
-- [ ] Explicit MPS device selection for Apple Silicon GPU acceleration
-- [ ] Cross-file page batching (collect flagged pages across files, process as one batch)
-- [ ] Improved Surya parallelization and resource utilization
-- [ ] Memory optimization to reduce peak usage during Surya processing
-- [ ] Model caching to persist loaded models across MCP calls
-- [ ] Benchmarking infrastructure to measure and validate improvements
+(No active requirements — define with `/gsd:new-milestone`)
 
 ### Out of Scope
 
@@ -76,26 +76,38 @@ Produce accurate OCR text from scanned academic PDFs with minimal manual interve
 - Dictionary-based spell correction — defer to v3.0; high effort, medium impact
 - Image preprocessing (cv2) — defer to v3.0; adds heavy dependency for uncertain gain
 - Per-region quality scoring — defer to v3.0; complex, benefits fewer documents
+- Multi-GPU support — Single Apple Silicon GPU is target use case
+- CUDA optimization — Apple Silicon only; CUDA supported but not optimized
+- Distributed processing — Single-machine tool for individual scholars
+- MLX migration — PyTorch MPS sufficient, MLX would be major rewrite
+- torch.compile optimization — MPS support is experimental, not stable enough
 
 ## Context
 
-Shipped v2.0 with 4,860 LOC Python (3,078 library + 1,782 tests).
-Tech stack: ocrmypdf, PyMuPDF, marker-pdf, pytesseract, Rich, FastMCP.
+Shipped v2.1 with 4,465 LOC Python library + ~2,500 LOC tests.
+Tech stack: ocrmypdf, PyMuPDF, marker-pdf, pytesseract, Rich, FastMCP, cachetools.
 Build: hatchling. Lint: ruff. Python >=3.11, <3.14.
 
 Layered architecture:
 - types.py, callbacks.py, exceptions.py (foundation)
 - quality.py, dictionary.py, confidence.py (quality analysis)
 - tesseract.py, surya.py, processor.py (backends)
+- device.py, timing.py (hardware abstraction)
+- model_cache.py, batch.py (performance)
 - postprocess.py (text transforms)
 - logging_.py, environment.py (robustness)
 - pipeline.py (orchestration)
 - cli.py (presentation)
 - mcp_server.py (MCP integration)
 
-v3.0 candidates: dictionary-based spell correction, config file support, image preprocessing, per-region quality scoring, n-gram perplexity scoring, layout consistency checks, configurable domain dictionaries.
+Performance characteristics (v2.1):
+- MPS GPU acceleration with automatic CUDA > MPS > CPU fallback
+- Model caching eliminates 30-60s load time on subsequent requests
+- Cross-file batching processes all flagged pages in single Surya call
+- Adaptive batch sizing prevents OOM on memory-constrained systems
+- Expected 5-15x improvement for multi-file batches
 
-**v2.1 focus:** Surya performance on Apple Silicon — the neural OCR fallback is correct but slow. Cross-file batching, MPS acceleration, and model caching should dramatically improve throughput for multi-file jobs.
+v3.0 candidates: dictionary-based spell correction, config file support, image preprocessing, per-region quality scoring, n-gram perplexity scoring, layout consistency checks, configurable domain dictionaries.
 
 ## Key Decisions
 
@@ -112,15 +124,19 @@ v3.0 candidates: dictionary-based spell correction, config file support, image p
 | QueueHandler/QueueListener for logging | fork+logging broken on macOS | ✓ Good — workers log reliably |
 | dehyphenate before join_paragraphs | Hyphen-newline pattern needs raw newlines | ✓ Good |
 | Pipeline .txt files for MCP extract_text | Re-extraction loses post-processing | ✓ Good — preserves transforms |
+| Benchmarking first (v2.1) | Establish baseline before optimization | ✓ Good — valid measurements |
+| TTLCache maxsize=1 | Surya models too large for multiple cached sets | ✓ Good — single model cache |
+| Cross-file batching | N files → 1 Surya call vs N calls | ✓ Good — 5-15x expected improvement |
+| Adaptive batch sizing | Prevent OOM on 8GB machines | ✓ Good — memory-aware processing |
 
 ## Constraints
 
 - **Python**: >=3.11, <3.14
-- **Dependencies**: ocrmypdf, pymupdf, marker-pdf, rich, fastmcp
+- **Dependencies**: ocrmypdf, pymupdf, marker-pdf, rich, fastmcp, cachetools
 - **Build**: hatchling
 - **Lint**: ruff, line-length 100, rules E/F/I/N/W
 - **Backwards compatibility**: CLI interface (`ocr` command) must remain stable
 - **Tesseract-first**: Two-phase architecture is core value
 
 ---
-*Last updated: 2026-02-03 after v2.1 milestone start*
+*Last updated: 2026-02-04 after v2.1 milestone*

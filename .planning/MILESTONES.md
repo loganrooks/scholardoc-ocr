@@ -1,5 +1,33 @@
 # Project Milestones: scholardoc-ocr
 
+## v2.1 Performance (Shipped: 2026-02-04)
+
+**Delivered:** Surya optimization for Apple Silicon with MPS GPU acceleration, model caching, and cross-file batching. Expected 5-15x improvement for multi-file jobs.
+
+**Phases completed:** 11-14 (17 plans total)
+
+**Key accomplishments:**
+
+- Benchmarking infrastructure with pytest-benchmark, GPU-synchronized timing, hardware profiles (M1/M2/M3/M4), and CI regression detection
+- MPS device configuration with automatic detection (CUDA > MPS > CPU), validation, and actionable error messages
+- GPU-to-CPU fallback: Pipeline automatically retries on CPU when MPS fails, with --strict-gpu override
+- Model caching with TTLCache (30 min default), eliminating 30-60s model load time on subsequent MCP requests
+- Cross-file batching: All flagged pages across N files processed in single Surya call with memory-aware batch splitting
+- Memory optimization: Adaptive batch sizing based on available RAM, cleanup between documents, ocr_memory_stats MCP tool
+
+**Stats:**
+
+- 53 files created/modified (10,180 insertions, 312 deletions)
+- 4,465 lines of Python (library)
+- 4 phases, 17 plans, 22 requirements
+- 8 days from milestone start to ship
+
+**Git range:** `feat(11-01)` → `docs(14)`
+
+**What's next:** v3.0 — Dictionary-based spell correction, config file support, image preprocessing, per-region quality scoring
+
+---
+
 ## v2.0 Post-Processing + Robustness (Shipped: 2026-02-02)
 
 **Delivered:** RAG-ready text output with post-processing pipeline (unicode normalization, dehyphenation, paragraph joining), robust operational behavior (structured logging, environment validation, timeout protection), and structured output formats (JSON metadata, async MCP jobs).
