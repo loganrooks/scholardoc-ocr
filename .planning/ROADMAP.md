@@ -34,7 +34,7 @@ See .planning/milestones/v2.1-ROADMAP.md for v2.1 details. 4 phases, 17 plans, 2
 
 **Milestone Goal:** Instrument the pipeline to understand where and why OCR fails, build an LLM evaluation framework with ground truth corpus, analyze quality scoring empirically, then apply targeted improvements based on data rather than speculation.
 
-- [ ] **Phase 15: Diagnostic Infrastructure** - Instrument pipeline to capture per-page diagnostic data
+- [x] **Phase 15: Diagnostic Infrastructure** - Instrument pipeline to capture per-page diagnostic data (completed 2026-02-17)
 - [ ] **Phase 16: Test Corpus & Ground Truth** - Build evaluation corpus with reference text for philosophy PDFs
 - [ ] **Phase 17: Evaluation Framework** - LLM-as-judge evaluation via CLI with versioned templates
 - [ ] **Phase 18: Quality Metrics & Result Storage** - CER/WER computation against ground truth with structured result storage
@@ -55,9 +55,9 @@ See .planning/milestones/v2.1-ROADMAP.md for v2.1 details. 4 phases, 17 plans, 2
   5. Each page in the diagnostic output carries a struggle category label (bad_scan, character_confusion, vocabulary_miss, layout_error, language_confusion, signal_disagreement, gray_zone, surya_insufficient) explaining the dominant failure mode
 **Plans:** 3 plans
 Plans:
-- [ ] 15-01-PLAN.md -- Diagnostic data model: dataclasses, utility functions, PageResult integration
-- [ ] 15-02-PLAN.md -- Always-captured diagnostics: pipeline wiring, postprocess counters
-- [ ] 15-03-PLAN.md -- Diagnostics-gated features: image quality, engine diff, CLI flag, JSON sidecar
+- [x] 15-01-PLAN.md -- Diagnostic data model: dataclasses, utility functions, PageResult integration
+- [x] 15-02-PLAN.md -- Always-captured diagnostics: pipeline wiring, postprocess counters
+- [x] 15-03-PLAN.md -- Diagnostics-gated features: image quality, engine diff, CLI flag, JSON sidecar
 
 ### Phase 16: Test Corpus & Ground Truth
 **Goal**: A curated test corpus of difficult philosophy PDFs exists with human-verified ground truth text, enabling repeatable evaluation
@@ -121,7 +121,7 @@ Phases 15 and 16 are parallelizable foundations. After both complete: 17 -> 18 -
 | 1-7 | v1.0 | 17/17 | Complete | 2026-02-02 |
 | 8-10 | v2.0 | 8/8 | Complete | 2026-02-02 |
 | 11-14 | v2.1 | 17/17 | Complete | 2026-02-04 |
-| 15. Diagnostic Infrastructure | v3.0 | 0/3 | Planning complete | - |
+| 15. Diagnostic Infrastructure | v3.0 | 3/3 | Complete | 2026-02-17 |
 | 16. Test Corpus & Ground Truth | v3.0 | 0/TBD | Not started | - |
 | 17. Evaluation Framework | v3.0 | 0/TBD | Not started | - |
 | 18. Quality Metrics & Results | v3.0 | 0/TBD | Not started | - |
