@@ -5,6 +5,10 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field
 from enum import StrEnum
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .diagnostics import PageDiagnostics
 
 # ISO 639-1 to engine-specific language code mapping
 LANGUAGE_MAP: dict[str, dict[str, str]] = {
@@ -84,6 +88,7 @@ class PageResult:
     engine: OCREngine
     flagged: bool = False
     text: str | None = None
+    diagnostics: PageDiagnostics | None = None
 
     def to_dict(self, include_text: bool = False) -> dict:
         """Convert to a JSON-serializable dictionary."""
@@ -96,6 +101,8 @@ class PageResult:
         }
         if include_text and self.text is not None:
             d["text"] = self.text
+        if self.diagnostics is not None:
+            d["diagnostics"] = self.diagnostics.to_dict()
         return d
 
 
