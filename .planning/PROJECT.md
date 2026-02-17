@@ -62,7 +62,14 @@ Produce accurate OCR text from scanned academic PDFs with minimal manual interve
 
 ### Active
 
-(No active requirements — define with `/gsd:new-milestone`)
+**v3.0 Diagnostic Intelligence** — Understand where and why OCR fails before building fixes.
+
+- Diagnostic enrichment (image quality metrics, layout detection, char-level confidence, signal disagreement, Surya diffs, post-processing delta)
+- Struggle taxonomy (categorize failure modes beyond composite score)
+- Test corpus of difficult philosophy PDFs (Simondon, Derrida) with smart page selection
+- LLM evaluation framework (versioned templates, CLI-based Claude/Codex evaluation, structured output)
+- Quality scoring calibration against ground truth (threshold, weights, signal floors)
+- Targeted improvements driven by diagnostic findings
 
 ### Out of Scope
 
@@ -72,10 +79,8 @@ Produce accurate OCR text from scanned academic PDFs with minimal manual interve
 - Cloud deployment or API server — local tool for individual scholars
 - OCR training or model fine-tuning — use Tesseract and Surya as-is
 - Click migration for CLI — argparse works; migration adds risk for marginal benefit
-- Config file support (.scholardoc-ocr.yaml) — defer to v3.0; CLI flags sufficient for now
-- Dictionary-based spell correction — defer to v3.0; high effort, medium impact
-- Image preprocessing (cv2) — defer to v3.0; adds heavy dependency for uncertain gain
-- Per-region quality scoring — defer to v3.0; complex, benefits fewer documents
+- Config file support (.scholardoc-ocr.yaml) — defer to future; CLI flags sufficient for now
+- Per-region quality scoring — defer to future; complex, benefits fewer documents
 - Multi-GPU support — Single Apple Silicon GPU is target use case
 - CUDA optimization — Apple Silicon only; CUDA supported but not optimized
 - Distributed processing — Single-machine tool for individual scholars
@@ -107,7 +112,7 @@ Performance characteristics (v2.1):
 - Adaptive batch sizing prevents OOM on memory-constrained systems
 - Expected 5-15x improvement for multi-file batches
 
-v3.0 candidates: dictionary-based spell correction, config file support, image preprocessing, per-region quality scoring, n-gram perplexity scoring, layout consistency checks, configurable domain dictionaries.
+v3.0 focus: Diagnostic intelligence — instrument the pipeline to capture what we throw away (image quality, layout data, char-level confidence, signal disagreement, Surya comparison diffs), build an LLM evaluation framework to establish ground truth on real philosophy PDFs, calibrate quality scoring empirically, then apply targeted improvements based on data rather than speculation. New dependencies: Pillow/numpy for image analysis. Evaluation via claude CLI and codex CLI (account-based, not API).
 
 ## Key Decisions
 
@@ -128,6 +133,9 @@ v3.0 candidates: dictionary-based spell correction, config file support, image p
 | TTLCache maxsize=1 | Surya models too large for multiple cached sets | ✓ Good — single model cache |
 | Cross-file batching | N files → 1 Surya call vs N calls | ✓ Good — 5-15x expected improvement |
 | Adaptive batch sizing | Prevent OOM on 8GB machines | ✓ Good — memory-aware processing |
+| Measure before you fix (v3.0) | Speculative features waste effort; data-driven improvements don't | — Pending |
+| CLI-based LLM evaluation over API | Uses existing Claude/Codex accounts, no SDK dependency, repeatable via templates | — Pending |
+| Independent evaluation framework | Keep separate from hermeneutic_mcp; reusable for any OCR output | — Pending |
 
 ## Constraints
 
@@ -138,5 +146,15 @@ v3.0 candidates: dictionary-based spell correction, config file support, image p
 - **Backwards compatibility**: CLI interface (`ocr` command) must remain stable
 - **Tesseract-first**: Two-phase architecture is core value
 
+## Open Questions
+
+| Question | Why It Matters | Criticality | Status |
+|----------|----------------|-------------|--------|
+| Are composite weights 0.4/0.3/0.3 correct? | Wrong weights = wrong pages flagged for Surya | Critical | Pending — Phase 4 calibration |
+| Is 0.85 the right quality threshold? | Too high = unnecessary Surya; too low = bad text passes | Critical | Pending — Phase 4 calibration |
+| What are the top failure modes on real philosophy PDFs? | Determines what Phase 5 improvements to build | Critical | Pending — Phase 4 analysis |
+| Does Surya actually improve pages Tesseract flags? | If not, fallback strategy needs rethinking | Medium | Pending — Phase 1 comparison data |
+| Which image preprocessing techniques help most? | Deskew, denoise, and contrast all have different costs and benefits | Medium | Pending — Phase 5 experimentation |
+
 ---
-*Last updated: 2026-02-04 after v2.1 milestone*
+*Last updated: 2026-02-17 after v3.0 milestone start*
