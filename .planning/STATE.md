@@ -5,14 +5,14 @@
 See: .planning/PROJECT.md (updated 2026-02-17)
 
 **Core value:** Produce accurate OCR text from scanned academic PDFs with minimal manual intervention, using quality-gated fallback to avoid expensive neural OCR unless needed.
-**Current focus:** v3.0 Diagnostic Intelligence — defining requirements
+**Current focus:** v3.0 Diagnostic Intelligence — Phase 15 (Diagnostic Infrastructure)
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-02-17 — Milestone v3.0 started
+Phase: 15 of 20 (Diagnostic Infrastructure)
+Plan: 0 of TBD in current phase
+Status: Ready to plan
+Last activity: 2026-02-17 — Roadmap created for v3.0
 
 Progress: v1.0 [##########] | v2.0 [##########] | v2.1 [##########] | v3.0 [░░░░░░░░░░] 0%
 
@@ -21,7 +21,7 @@ Progress: v1.0 [##########] | v2.0 [##########] | v2.1 [##########] | v3.0 [░�
 **Velocity:**
 - Total plans completed: 42 (v1.0: 17, v2.0: 8, v2.1: 17)
 - Average duration: ~4 min/plan
-- Total milestones: 3
+- Total milestones: 3 shipped, 1 in progress
 
 **By Milestone:**
 
@@ -30,12 +30,17 @@ Progress: v1.0 [##########] | v2.0 [##########] | v2.1 [##########] | v3.0 [░�
 | v1.0 MVP | 7 | 17 | 6 days |
 | v2.0 Robustness | 3 | 8 | 6 days |
 | v2.1 Performance | 4 | 17 | 8 days |
+| v3.0 Diagnostic Intelligence | 6 | TBD | — |
 
 ## Accumulated Context
 
 ### Decisions
 
 See PROJECT.md Key Decisions table for full history.
+Recent for v3.0:
+- Measure before you fix: instrument and evaluate before making changes
+- CLI-based LLM evaluation over API: uses existing accounts, no SDK dependency
+- Independent evaluation framework: reusable, not coupled to pipeline execution
 
 ### Pending Todos
 
@@ -55,9 +60,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-17
-Stopped at: v3.0 milestone initialization
+Stopped at: v3.0 roadmap created, ready to plan Phase 15
 Resume file: None
-
-## Next Steps
-
-Define requirements and create roadmap for v3.0 Diagnostic Intelligence.
