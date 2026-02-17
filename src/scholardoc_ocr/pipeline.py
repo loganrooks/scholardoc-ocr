@@ -51,6 +51,7 @@ class PipelineConfig:
     keep_intermediates: bool = False
     timeout: int = 1800
     extract_text: bool = False
+    diagnostics: bool = False
 
 
 def _tesseract_worker(input_path: Path, output_dir: Path, config_dict: dict) -> FileResult:
@@ -339,6 +340,7 @@ def run_pipeline(
             "debug": config.debug,
             "max_samples": config.max_samples,
             "jobs_per_file": jobs_per_file,
+            "diagnostics": config.diagnostics,
         }
 
         # --- Phase 1: Parallel Tesseract ---

@@ -253,6 +253,12 @@ Examples:
         help="Write post-processed .txt file alongside output PDF",
     )
     parser.add_argument(
+        "--diagnostics",
+        action="store_true",
+        help="Capture rich diagnostic data (image quality, engine diffs) "
+        "and write .diagnostics.json sidecar",
+    )
+    parser.add_argument(
         "--json",
         action="store_true",
         dest="json_output",
@@ -364,6 +370,7 @@ Examples:
         keep_intermediates=args.keep_intermediates,
         timeout=args.timeout,
         extract_text=args.extract_text,
+        diagnostics=args.diagnostics,
     )
 
     if args.json_output:

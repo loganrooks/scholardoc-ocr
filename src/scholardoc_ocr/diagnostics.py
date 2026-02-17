@@ -2,8 +2,8 @@
 
 Contains dataclasses for structured diagnostic data (SignalDisagreement,
 EngineDiff, PageDiagnostics) and utility functions for signal disagreement
-detection, struggle classification, engine diffing, and building diagnostics
-from QualityResult objects.
+detection, struggle classification, engine diffing, image quality analysis,
+and building diagnostics from QualityResult objects.
 
 All dataclasses use only primitive types (float, int, str, bool, list, dict, None)
 to ensure safe pickling through ProcessPoolExecutor.
@@ -12,12 +12,16 @@ to ensure safe pickling through ProcessPoolExecutor.
 from __future__ import annotations
 
 import difflib
+import logging
 from dataclasses import dataclass, field
 from itertools import combinations
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from scholardoc_ocr.quality import QualityResult
+
+logger = logging.getLogger(__name__)
 
 # Default threshold for flagging signal disagreement (DIAG-03).
 # Pairs with magnitude above this are flagged via has_signal_disagreement.
@@ -269,6 +273,107 @@ def compute_engine_diff(tesseract_text: str, surya_text: str) -> EngineDiff:
             "substitutions": len(substitutions),
         },
     )
+
+
+def _detect_skew(gray: object) -> float | None:
+    """Detect skew angle from a grayscale image using Canny + Hough lines.
+
+    Filters to near-horizontal lines (|angle| < 45 degrees) and returns
+    the median angle in degrees. Returns None if no lines are detected.
+
+    Args:
+        gray: Grayscale image as numpy array.
+
+    Returns:
+        Median skew angle in degrees, or None if undetectable.
+    """
+    import math
+
+    import cv2
+    import numpy as np
+
+    edges = cv2.Canny(gray, 50, 150, apertureSize=3)
+    lines = cv2.HoughLinesP(edges, 1, math.pi / 180, threshold=100, minLineLength=50, maxLineGap=10)
+
+    if lines is None:
+        return None
+
+    angles = []
+    for line in lines:
+        x1, y1, x2, y2 = line[0]
+        dx = x2 - x1
+        dy = y2 - y1
+        if dx == 0:
+            continue
+        angle = math.degrees(math.atan2(dy, dx))
+        # Filter to near-horizontal lines (|angle| < 45 degrees)
+        if abs(angle) < 45:
+            angles.append(angle)
+
+    if not angles:
+        return None
+
+    return float(np.median(angles))
+
+
+def analyze_image_quality(pdf_path: Path, page_num: int) -> dict[str, float | None]:
+    """Analyze image quality metrics for a single PDF page.
+
+    Computes DPI (from embedded images), contrast, blur score (Laplacian variance),
+    and skew angle (via Canny + Hough lines). Renders the page at 150 DPI to
+    save memory (4x less than 300 DPI).
+
+    Args:
+        pdf_path: Path to the PDF file.
+        page_num: 0-indexed page number.
+
+    Returns:
+        Dict with keys: dpi (float|None), contrast (float), blur_score (float),
+        skew_angle (float|None).
+    """
+    import cv2
+    import fitz
+    import numpy as np
+
+    doc = fitz.open(pdf_path)
+    try:
+        page = doc[page_num]
+
+        # DPI: average xres from embedded images
+        dpi: float | None = None
+        image_info = page.get_image_info()
+        if image_info:
+            xres_values = [img.get("xres", 0) for img in image_info if img.get("xres", 0) > 0]
+            if xres_values:
+                dpi = round(sum(xres_values) / len(xres_values), 2)
+
+        # Render page at 150 DPI (NOT 300 -- saves 4x memory)
+        pix = page.get_pixmap(dpi=150)
+        img = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.h, pix.w, pix.n)
+
+        # Convert to grayscale
+        if pix.n >= 3:
+            gray = cv2.cvtColor(img[:, :, :3], cv2.COLOR_RGB2GRAY)
+        else:
+            gray = img[:, :, 0]
+
+        # Blur score: Laplacian variance (lower = blurrier)
+        blur_score = float(cv2.Laplacian(gray, cv2.CV_64F).var())
+
+        # Contrast: standard deviation of pixel values normalized to [0, ~0.3]
+        contrast = float(np.std(gray)) / 255.0
+
+        # Skew angle
+        skew_angle = _detect_skew(gray)
+
+        return {
+            "dpi": dpi,
+            "contrast": round(contrast, 4),
+            "blur_score": round(blur_score, 2),
+            "skew_angle": round(skew_angle, 2) if skew_angle is not None else None,
+        }
+    finally:
+        doc.close()
 
 
 def build_always_diagnostics(qr: QualityResult, threshold: float) -> PageDiagnostics:
