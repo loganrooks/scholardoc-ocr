@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-02-17)
 ## Current Position
 
 Phase: 15 of 20 (Diagnostic Infrastructure)
-Plan: 0 of TBD in current phase
-Status: Ready to plan
-Last activity: 2026-02-17 — Roadmap created for v3.0
+Plan: 1 of 3 in current phase
+Status: Executing
+Last activity: 2026-02-17 — Completed 15-01-PLAN.md (Diagnostic Data Model)
 
-Progress: v1.0 [##########] | v2.0 [##########] | v2.1 [##########] | v3.0 [░░░░░░░░░░] 0%
+Progress: v1.0 [##########] | v2.0 [##########] | v2.1 [##########] | v3.0 [#░░░░░░░░░] ~5%
 
 ## Performance Metrics
 
@@ -31,6 +31,7 @@ Progress: v1.0 [##########] | v2.0 [##########] | v2.1 [##########] | v3.0 [░�
 | v2.0 Robustness | 3 | 8 | 6 days |
 | v2.1 Performance | 4 | 17 | 8 days |
 | v3.0 Diagnostic Intelligence | 6 | TBD | — |
+| Phase 15 P01 | 3min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -41,6 +42,10 @@ Recent for v3.0:
 - Measure before you fix: instrument and evaluate before making changes
 - CLI-based LLM evaluation over API: uses existing accounts, no SDK dependency
 - Independent evaluation framework: reusable, not coupled to pipeline execution
+- Primitive-only dataclasses for ProcessPoolExecutor pickling safety (Phase 15)
+- TYPE_CHECKING imports to avoid circular dependencies between diagnostics and types modules (Phase 15)
+- Conservative struggle category thresholds, Phase 19 will calibrate (Phase 15)
+- [Phase 15]: Primitive-only dataclasses for ProcessPoolExecutor pickling safety
 
 ### Pending Todos
 
@@ -60,5 +65,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-17
-Stopped at: v3.0 roadmap created, ready to plan Phase 15
+Stopped at: Completed 15-01-PLAN.md (Diagnostic Data Model)
 Resume file: None
