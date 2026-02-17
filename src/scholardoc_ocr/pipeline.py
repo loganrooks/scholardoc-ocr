@@ -59,6 +59,7 @@ def _tesseract_worker(input_path: Path, output_dir: Path, config_dict: dict) -> 
     This is a top-level function accepting only picklable args.
     It must NOT import surya.
     """
+    from .diagnostics import build_always_diagnostics
     from .postprocess import postprocess
     from .processor import PDFProcessor
     from .quality import QualityAnalyzer
@@ -97,20 +98,45 @@ def _tesseract_worker(input_path: Path, output_dir: Path, config_dict: dict) -> 
 
         # If existing text is good enough and not forced, use as-is
         if not force_tesseract and not bad_pages:
-            full_text = postprocess("\n\n".join(page_texts))
+            pp_counts: dict[str, int] = {}
+            full_text = postprocess(
+                "\n\n".join(page_texts), counts=pp_counts
+            )
             text_path = final_dir / f"{input_path.stem}.txt"
             text_path.write_text(full_text, encoding="utf-8")
             pdf_path = final_dir / f"{input_path.stem}.pdf"
             shutil.copy(input_path, pdf_path)
 
+            # Build diagnostics for each page (DIAG-02/03/05/06/07)
+            page_diagnostics = []
+            for i in range(page_count):
+                try:
+                    qr = page_results[i] if i < len(page_results) else None
+                    diag = build_always_diagnostics(qr, threshold) if qr else None
+                    if diag is not None:
+                        diag.postprocess_counts = dict(pp_counts)
+                    page_diagnostics.append(diag)
+                except Exception:
+                    logger.warning(
+                        "%s: page %d diagnostics failed",
+                        input_path.name, i,
+                    )
+                    page_diagnostics.append(None)
+
             pages = [
                 PageResult(
                     page_number=i,
                     status=PageStatus.GOOD,
-                    quality_score=page_qualities[i] if i < len(page_qualities) else 0.0,
+                    quality_score=(
+                        page_qualities[i] if i < len(page_qualities) else 0.0
+                    ),
                     engine=OCREngine.EXISTING,
                     flagged=False,
                     text=page_texts[i] if i < len(page_texts) else None,
+                    diagnostics=(
+                        page_diagnostics[i]
+                        if i < len(page_diagnostics) else None
+                    ),
                 )
                 for i in range(page_count)
             ]
@@ -163,20 +189,57 @@ def _tesseract_worker(input_path: Path, output_dir: Path, config_dict: dict) -> 
         bad_after_tess = [i for i, r in enumerate(tess_page_results) if r.flagged]
 
         # Write Tesseract output
-        full_text = postprocess("\n\n".join(tess_page_texts))
+        tess_pp_counts: dict[str, int] = {}
+        full_text = postprocess(
+            "\n\n".join(tess_page_texts), counts=tess_pp_counts
+        )
         text_path = final_dir / f"{input_path.stem}.txt"
         text_path.write_text(full_text, encoding="utf-8")
         pdf_path = final_dir / f"{input_path.stem}.pdf"
         shutil.copy(tess_output, pdf_path)
 
+        # Build diagnostics for each page (DIAG-02/03/05/06/07)
+        tess_diagnostics = []
+        for i in range(page_count):
+            try:
+                qr = (
+                    tess_page_results[i]
+                    if i < len(tess_page_results) else None
+                )
+                diag = (
+                    build_always_diagnostics(qr, threshold) if qr else None
+                )
+                if diag is not None:
+                    diag.postprocess_counts = dict(tess_pp_counts)
+                tess_diagnostics.append(diag)
+            except Exception:
+                logger.warning(
+                    "%s: page %d diagnostics failed",
+                    input_path.name, i,
+                )
+                tess_diagnostics.append(None)
+
         pages = [
             PageResult(
                 page_number=i,
-                status=PageStatus.FLAGGED if i in bad_after_tess else PageStatus.GOOD,
-                quality_score=tess_qualities[i] if i < len(tess_qualities) else 0.0,
+                status=(
+                    PageStatus.FLAGGED
+                    if i in bad_after_tess else PageStatus.GOOD
+                ),
+                quality_score=(
+                    tess_qualities[i]
+                    if i < len(tess_qualities) else 0.0
+                ),
                 engine=OCREngine.TESSERACT,
                 flagged=i in bad_after_tess,
-                text=tess_page_texts[i] if i < len(tess_page_texts) else None,
+                text=(
+                    tess_page_texts[i]
+                    if i < len(tess_page_texts) else None
+                ),
+                diagnostics=(
+                    tess_diagnostics[i]
+                    if i < len(tess_diagnostics) else None
+                ),
             )
             for i in range(page_count)
         ]
@@ -511,6 +574,34 @@ def run_pipeline(
                         if any_fallback:
                             file_result.device_used = "cpu"
                             file_result.phase_timings["surya_fallback"] = True
+
+                    # Update diagnostics for Surya-processed pages (DIAG-06)
+                    from .diagnostics import classify_struggle
+
+                    for file_result in flagged_results:
+                        for page in file_result.pages:
+                            if (
+                                page.engine == OCREngine.SURYA
+                                and page.diagnostics is not None
+                            ):
+                                try:
+                                    updated = classify_struggle(
+                                        page.diagnostics.signal_scores,
+                                        page.quality_score,
+                                        config.quality_threshold,
+                                        engine="surya",
+                                        surya_score=page.quality_score,
+                                    )
+                                    page.diagnostics.struggle_categories = (
+                                        updated
+                                    )
+                                except Exception:
+                                    logger.warning(
+                                        "%s: page %d struggle reclassify "
+                                        "failed",
+                                        file_result.filename,
+                                        page.page_number,
+                                    )
 
                     # Update .txt files with Surya-enhanced text
                     for file_result in flagged_results:
