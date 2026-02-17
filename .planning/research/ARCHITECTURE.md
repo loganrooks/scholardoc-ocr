@@ -1,534 +1,811 @@
-# Architecture Patterns: Performance Optimization Integration
+# Architecture Research: Diagnostic Intelligence & Evaluation Framework
 
-**Domain:** OCR Pipeline Performance Optimization
-**Researched:** 2026-02-03
-**Confidence:** HIGH (based on existing codebase analysis + verified external documentation)
+**Domain:** OCR Pipeline Diagnostic Enrichment, LLM-Based Evaluation, Quality Calibration
+**Researched:** 2026-02-17
+**Confidence:** HIGH (based on full codebase analysis + verified external documentation)
 
-## Current Architecture Overview
+## Current Architecture Summary
 
-```
-CLI/MCP Request
-       |
-       v
-+------------------+
-|   PipelineConfig |
-+------------------+
-       |
-       v
-+------------------+     +-------------------+
-|   run_pipeline   |---->| ProcessPoolExecutor|
-|   (pipeline.py)  |     | (Tesseract workers)|
-+------------------+     +-------------------+
-       |                          |
-       v                          v
-+------------------+     +-------------------+
-| Phase 1: Tess    |     | _tesseract_worker |
-| (parallel)       |     | (per-file)        |
-+------------------+     +-------------------+
-       |
-       v
-+------------------+
-| Quality Analysis |
-| (per-page scores)|
-+------------------+
-       |
-       v (if flagged pages exist)
-+------------------+
-| Phase 2: Surya   |
-| (sequential/file)|
-+------------------+
-       |
-       v
-+------------------+
-| surya.load_models| <-- Models loaded once per batch
-+------------------+
-       |
-       v (for each file with flagged pages)
-+------------------+
-| surya.convert_pdf| <-- Sequential per-file
-| (PdfConverter)   |
-+------------------+
-```
-
-### Current Pain Points
-
-1. **Sequential Per-File Surya Processing**: Lines 378-459 in `pipeline.py` iterate over files sequentially. Each `convert_pdf()` call creates a new `PdfConverter` instance, even though models are shared.
-
-2. **No Cross-File Page Batching**: If 5 files each have 2 flagged pages, we make 5 separate Surya calls instead of one batch of 10 pages. Surya's batch processing optimizations are underutilized.
-
-3. **MCP Model Loading Per-Request**: Each `ocr()` or `ocr_async()` call starts fresh. Models are reloaded even for back-to-back requests.
-
-4. **No MPS Acceleration**: `surya.load_models()` uses auto-detection but doesn't explicitly configure MPS for Apple Silicon.
-
-5. **No Benchmarking Infrastructure**: No way to measure or compare performance across changes.
-
-## Recommended Architecture
-
-### Component Overview
+The existing pipeline has clean layered separation:
 
 ```
-CLI/MCP Request
+Entry Points (cli.py, mcp_server.py)
        |
        v
-+------------------+
-|   PipelineConfig |
-+------------------+
+Orchestration (pipeline.py: PipelineConfig, run_pipeline)
+       |
+       +---> Phase 1: Parallel Tesseract (_tesseract_worker via ProcessPoolExecutor)
+       |         |
+       |         v
+       |    Quality Analysis (quality.py: QualityAnalyzer, _GarbledSignal)
+       |    + confidence.py (ConfidenceSignal) + dictionary.py (DictionarySignal)
+       |         |
+       |         v
+       |    types.py: PageResult(page_number, status, quality_score, engine, flagged, text)
+       |
+       +---> Phase 2: Cross-File Batched Surya (batch.py, surya.py, model_cache.py)
+       |         |
+       |         v
+       |    Re-analysis with QualityAnalyzer, update PageResult in-place
        |
        v
-+------------------+
-|   ModelManager   | <-- NEW: Singleton model cache
-|   (model_cache.py)|
-+------------------+
-       |
-       v
-+------------------+     +-------------------+
-|   run_pipeline   |---->| ProcessPoolExecutor|
-|   (pipeline.py)  |     | (Tesseract workers)|
-+------------------+     +-------------------+
-       |
-       v
-+------------------+
-| Phase 1: Tess    |
-+------------------+
-       |
-       v
-+------------------+
-| Flagged Page     | <-- NEW: Collect ALL flagged pages
-| Aggregation      |      across ALL files
-+------------------+
-       |
-       v
-+------------------+
-| Phase 2: Surya   | <-- MODIFIED: Single batch call
-| (batch_convert)  |     for all flagged pages
-+------------------+
-       |
-       v
-+------------------+
-| Result Mapping   | <-- NEW: Map batch results
-|                  |     back to source files
-+------------------+
+Output: BatchResult -> FileResult[] -> PageResult[] + JSON metadata files
 ```
+
+**Key integration surfaces for new work:**
+
+1. `PageResult` -- the per-page data carrier (currently: page_number, status, quality_score, engine, flagged, text)
+2. `QualityResult` -- the quality analysis output (currently: score, flagged, signal_scores, signal_details, snippets)
+3. `_tesseract_worker` -- where Phase 1 processing happens per-file (in worker processes)
+4. `run_pipeline` -- where Phase 2 and final output assembly happen (main process)
+5. `FileResult.to_dict()` / `BatchResult.to_dict()` -- JSON serialization boundary
+
+## System Overview: New Architecture
+
+```
++===========================================================================+
+|                      EXISTING PIPELINE (unchanged)                         |
+|                                                                            |
+|  CLI/MCP --> PipelineConfig --> run_pipeline()                             |
+|    Phase 1: Tesseract (parallel) --> QualityAnalyzer --> PageResult[]      |
+|    Phase 2: Surya (batched) --> Re-analyze --> Updated PageResult[]        |
+|    Output: BatchResult with FileResult[] and JSON metadata                 |
++===========================================================================+
+         |                                          |
+         | (a) Enriched diagnostic                  | (b) Output artifacts
+         |     data in PageResult                   |     (.json, .txt, .pdf)
+         v                                          v
++--------------------+                   +------------------------+
+| diagnostics.py     |                   | Evaluation Framework   |
+| (NEW)              |                   | (NEW: eval/ package)   |
+|                    |                   |                        |
+| PageDiagnostics    |                   | eval/runner.py         |
+|  - image_metrics   |                   |   invoke claude/codex  |
+|  - signal_breakdown|                   |   as subprocess         |
+|  - timing_data     |                   |                        |
+|                    |                   | eval/templates/        |
+|                    |                   |   prompt templates     |
+| DiagnosticCollector|                   |   + JSON schemas       |
+|  - hooks into      |                   |                        |
+|    pipeline phases  |                   | eval/corpus.py         |
++--------------------+                   |   corpus management    |
+         |                               |                        |
+         v                               | eval/results.py        |
++--------------------+                   |   result storage +     |
+| Output: enriched   |                   |   comparison           |
+| .json files with   |                   +------------------------+
+| diagnostic data    |                            |
++--------------------+                            v
+                                         +------------------------+
+                                         | Analysis / Calibration |
+                                         | (NEW: analysis.py)     |
+                                         |                        |
+                                         | - Score distribution   |
+                                         | - Threshold analysis   |
+                                         | - Signal correlation   |
+                                         | - False positive/neg   |
+                                         +------------------------+
+                                                   |
+                                                   v
+                                         +------------------------+
+                                         | Targeted Improvements  |
+                                         | (modifications to      |
+                                         |  existing modules)     |
+                                         |                        |
+                                         | quality.py adjustments |
+                                         | dictionary.py updates  |
+                                         | postprocess.py tweaks  |
+                                         +------------------------+
+```
+
+### Design Principle: Separation of Concerns
+
+The four activities in the milestone context map to four distinct architectural boundaries:
+
+| Activity | Where | Coupling to Pipeline |
+|----------|-------|----------------------|
+| (a) Diagnostic data capture | `diagnostics.py` + enriched `PageResult` | TIGHT -- runs during OCR |
+| (b) Evaluation of OCR output | `eval/` package | LOOSE -- runs post-hoc on artifacts |
+| (c) Analysis/calibration | `analysis.py` | NONE -- reads evaluation results |
+| (d) Targeted improvements | Existing modules | TIGHT -- modifies quality/postprocess |
+
+This separation is critical. Diagnostic capture must be lightweight and non-breaking during OCR runs. Evaluation is a completely separate workflow that reads output artifacts. Analysis consumes evaluation results. Improvements are code changes driven by analysis findings.
+
+## Component Responsibilities
 
 ### New Components
 
-#### 1. ModelManager (model_cache.py)
-
-**Purpose:** Singleton that manages Surya model lifecycle with TTL-based eviction.
-
-```python
-@dataclass
-class ModelCacheConfig:
-    device: str | None = None  # None = auto-detect, "mps", "cuda", "cpu"
-    ttl_seconds: float = 1800  # 30 minutes default
-    preload: bool = False      # Preload on first import
-
-class ModelManager:
-    """Singleton manager for Surya model lifecycle."""
-
-    _instance: ModelManager | None = None
-    _lock: threading.Lock = threading.Lock()
-
-    @classmethod
-    def instance(cls, config: ModelCacheConfig | None = None) -> ModelManager:
-        """Get or create the singleton instance."""
-        ...
-
-    def get_models(self) -> dict[str, Any]:
-        """Get models, loading if needed. Resets TTL on access."""
-        ...
-
-    def is_loaded(self) -> bool:
-        """Check if models are currently loaded."""
-        ...
-
-    def unload(self) -> None:
-        """Explicitly unload models to free memory."""
-        ...
-
-    def _check_expiry(self) -> None:
-        """Background thread to evict stale models."""
-        ...
-```
-
-**Integration Points:**
-- `surya.py`: Modify `load_models()` to delegate to `ModelManager`
-- `mcp_server.py`: Access shared models across requests
-- `pipeline.py`: Use cached models instead of loading fresh
-
-**Lifecycle:**
-1. First request: Models loaded, TTL timer starts
-2. Subsequent requests: Models reused, TTL reset
-3. TTL expires with no requests: Models evicted, memory freed
-4. MCP server shutdown: Explicit cleanup
-
-#### 2. Cross-File Batch Processor (batch.py)
-
-**Purpose:** Aggregate flagged pages across files and process in single Surya batch.
-
-```python
-@dataclass
-class PageReference:
-    """Reference to a specific page in a specific file."""
-    file_path: Path
-    file_index: int      # Index in batch results
-    page_number: int     # 0-indexed page in source PDF
-    output_path: Path    # Where final PDF should go
-
-@dataclass
-class BatchJob:
-    """Collection of pages to process together."""
-    pages: list[PageReference]
-    temp_dir: Path
-
-    def create_batch_pdf(self) -> Path:
-        """Extract all flagged pages into single temp PDF."""
-        ...
-
-    def distribute_results(self, batch_text: str) -> dict[Path, dict[int, str]]:
-        """Map batch results back to source files."""
-        ...
-
-def collect_flagged_pages(
-    file_results: list[FileResult],
-    input_files: list[Path],
-    force_surya: bool = False,
-) -> BatchJob | None:
-    """Aggregate all flagged pages across files into a BatchJob."""
-    ...
-
-def process_batch(
-    job: BatchJob,
-    model_manager: ModelManager,
-    config: SuryaConfig,
-) -> dict[Path, dict[int, str]]:
-    """Process entire batch and return per-file, per-page results."""
-    ...
-```
-
-**Data Flow for Cross-File Batching:**
-
-```
-File A: Pages 0,1,2 (page 1 flagged)
-File B: Pages 0,1,2,3 (pages 2,3 flagged)
-File C: Pages 0,1 (page 0 flagged)
-
-         |
-         v  collect_flagged_pages()
-
-BatchJob.pages = [
-    PageReference(A, 0, 1, output_A),  # A's page 1
-    PageReference(B, 1, 2, output_B),  # B's page 2
-    PageReference(B, 2, 3, output_B),  # B's page 3
-    PageReference(C, 3, 0, output_C),  # C's page 0
-]
-
-         |
-         v  create_batch_pdf()
-
-temp_batch.pdf: [A_p1, B_p2, B_p3, C_p0]  (4 pages total)
-
-         |
-         v  surya.convert_pdf(temp_batch.pdf)
-
-Single Surya call processes all 4 pages
-
-         |
-         v  distribute_results()
-
-{
-    output_A: {1: "text for A page 1"},
-    output_B: {2: "text for B page 2", 3: "text for B page 3"},
-    output_C: {0: "text for C page 0"},
-}
-```
-
-#### 3. Device Configuration (device.py)
-
-**Purpose:** Explicit device selection with MPS support.
-
-```python
-from enum import StrEnum
-
-class Device(StrEnum):
-    AUTO = "auto"
-    CPU = "cpu"
-    CUDA = "cuda"
-    MPS = "mps"
-
-def detect_device() -> str:
-    """Detect best available device."""
-    import torch
-
-    if torch.backends.mps.is_available():
-        return "mps"
-    elif torch.cuda.is_available():
-        return "cuda"
-    return "cpu"
-
-def resolve_device(requested: str | Device | None) -> str:
-    """Resolve requested device to actual torch device string."""
-    if requested is None or requested == Device.AUTO:
-        return detect_device()
-    return str(requested)
-
-def validate_mps() -> bool:
-    """Check if MPS is functional (not just available)."""
-    # Some MPS operations have bugs; test basic functionality
-    ...
-```
-
-**Integration:**
-- `ModelCacheConfig.device` uses this
-- `SuryaConfig` extended with `device` parameter
-- Environment variable `SCHOLARDOC_DEVICE` for override
-
-#### 4. Benchmarking Infrastructure (benchmarks/)
-
-**Purpose:** Performance regression testing and comparison.
-
-```
-benchmarks/
-    conftest.py          # pytest-benchmark fixtures
-    test_surya_batch.py  # Batch size benchmarks
-    test_pipeline.py     # End-to-end benchmarks
-    data/
-        sample_10page.pdf
-        sample_50page.pdf
-        sample_academic.pdf  # Dense text, complex layout
-```
-
-**Benchmark Categories:**
-
-1. **Model Loading**: Time to load Surya models (cold vs cached)
-2. **Batch Processing**: Pages/second at different batch sizes
-3. **Device Comparison**: CPU vs MPS performance
-4. **End-to-End Pipeline**: Full Tesseract+Surya workflow
+| Component | Responsibility | Typical Implementation |
+|-----------|----------------|------------------------|
+| `diagnostics.py` | Collect and attach per-page diagnostic metrics during pipeline execution | Dataclass + collector pattern, called from `_tesseract_worker` and `run_pipeline` |
+| `eval/runner.py` | Invoke claude/codex CLI as subprocess, pass prompts, parse JSON responses | subprocess.run with --output-format json, timeout handling, retry logic |
+| `eval/templates/` | Store versioned prompt templates and JSON schemas for evaluation | Jinja2 or f-string templates + JSON Schema files, loaded by runner |
+| `eval/corpus.py` | Manage test corpus: discover PDFs, track ground truth, handle symlinks | Path resolution, manifest file (corpus.json), gitignore-aware |
+| `eval/results.py` | Store, load, compare evaluation results across runs | JSON files in eval_results/ directory, diff computation |
+| `analysis.py` | Analyze score distributions, threshold sensitivity, signal correlations | Statistical functions operating on evaluation result datasets |
 
 ### Modified Components
 
-#### pipeline.py Changes
+| Component | Modification | Why |
+|-----------|-------------|-----|
+| `types.py` | Add optional `diagnostics` field to `PageResult` | Carry diagnostic data through pipeline without breaking existing consumers |
+| `pipeline.py` | Call `DiagnosticCollector` at key points if diagnostics enabled | Capture timing, image metrics, signal details per page |
+| `cli.py` | Add `--diagnostics` flag and `evaluate` subcommand | Enable diagnostic mode; provide CLI entry point for evaluation |
+| `quality.py` | No structural changes yet -- improvements come from analysis findings | Threshold/weight adjustments driven by data, not architecture changes |
 
-**Current (lines 348-465):**
-```python
-# Sequential per-file Surya
-for file_result in flagged_results:
-    # ... extract pages, convert, map back
+## Recommended Project Structure
+
+```
+src/scholardoc_ocr/
+    # Existing modules (unchanged structure)
+    __init__.py
+    cli.py                    # Add --diagnostics flag, evaluate subcommand
+    pipeline.py               # Add DiagnosticCollector hooks
+    types.py                  # Add diagnostics field to PageResult
+    quality.py                # Unchanged structurally (improvements later)
+    confidence.py             # Unchanged
+    dictionary.py             # Unchanged
+    tesseract.py              # Unchanged
+    surya.py                  # Unchanged
+    processor.py              # Unchanged
+    batch.py                  # Unchanged
+    model_cache.py            # Unchanged
+    callbacks.py              # Unchanged
+    postprocess.py            # Unchanged
+    device.py                 # Unchanged
+    timing.py                 # Unchanged
+    logging_.py               # Unchanged
+    environment.py            # Unchanged
+    exceptions.py             # Unchanged
+    mcp_server.py             # Unchanged
+
+    # NEW: Diagnostic data capture (runs during pipeline)
+    diagnostics.py            # PageDiagnostics dataclass, DiagnosticCollector
+
+    # NEW: Analysis utilities (runs on collected data)
+    analysis.py               # Score distribution, threshold analysis, correlations
+
+    # NEW: Evaluation framework (separate workflow, not pipeline)
+    eval/
+        __init__.py
+        runner.py             # Subprocess invocation of claude/codex CLI
+        templates/            # Prompt templates + JSON schemas
+            quality_eval.txt  # Template for quality evaluation
+            quality_eval_schema.json
+            comparison.txt    # Template for A/B comparison
+            comparison_schema.json
+            faithfulness.txt  # Template for faithfulness check
+            faithfulness_schema.json
+        corpus.py             # Test corpus management
+        results.py            # Result storage and comparison
+        cli_adapter.py        # Abstraction over claude/codex CLI differences
+
+# NEW: Test corpus directory (gitignored, symlinked PDFs)
+tests/
+    corpus/                   # Gitignored directory
+        corpus.json           # Manifest: file metadata, ground truth refs
+        pdfs/                 # Symlinks to actual PDFs
+        ground_truth/         # Expected text per page (manually curated)
+        README.md             # Instructions for setting up corpus
+
+# NEW: Evaluation results directory (gitignored)
+eval_results/
+    runs/                     # Per-run results
+        2026-02-17T10-30-00/
+            run_config.json   # What was evaluated, which evaluator
+            results.json      # Per-page evaluation scores
+            summary.json      # Aggregated metrics
+    baselines/                # Saved baseline results for comparison
 ```
 
-**Proposed:**
-```python
-# Batch all flagged pages
-from .batch import collect_flagged_pages, process_batch
-from .model_cache import ModelManager
+### Structure Rationale
 
-if flagged_results:
-    # Collect all flagged pages across all files
-    batch_job = collect_flagged_pages(
-        flagged_results, input_files, config.force_surya
+- **`diagnostics.py` in main package:** Diagnostic collection runs during pipeline execution, so it must be importable from `pipeline.py` and `_tesseract_worker`. Keeping it as a single module (not a subpackage) matches the existing flat module pattern.
+
+- **`eval/` as subpackage:** Evaluation is a separate workflow with multiple components (runner, templates, corpus, results). It never runs during OCR -- it runs afterward. A subpackage keeps this boundary clear and prevents accidental coupling.
+
+- **`analysis.py` in main package:** Analysis operates on evaluation result data and produces recommendations. It is a utility module, not a subpackage, because it is a single responsibility (statistical analysis of scores).
+
+- **`tests/corpus/` separate from `tests/`:** The corpus contains large binary PDF files that must never be committed. Using symlinks lets developers point to their own PDF collections. The `corpus.json` manifest IS committed and describes expected files.
+
+- **`eval_results/` at project root:** Evaluation results are ephemeral artifacts like build output. They are gitignored but readable by analysis scripts. The directory structure (runs + baselines) supports comparing results across time.
+
+## Architectural Patterns
+
+### Pattern 1: Optional Diagnostic Enrichment
+
+**What:** Add diagnostic data to `PageResult` without changing its core interface or breaking any existing consumer.
+
+**When to use:** Any time you want to attach extra metadata to pipeline results that only some consumers care about.
+
+**Trade-offs:** Slight memory overhead when diagnostics enabled; no overhead when disabled. Existing code that calls `page_result.to_dict()` continues to work.
+
+**Example:**
+
+```python
+# types.py -- add optional field
+@dataclass
+class PageResult:
+    page_number: int
+    status: PageStatus
+    quality_score: float
+    engine: OCREngine
+    flagged: bool = False
+    text: str | None = None
+    diagnostics: dict | None = None  # NEW: optional diagnostic data
+
+    def to_dict(self, include_text: bool = False) -> dict:
+        d: dict = {
+            "page_number": self.page_number,
+            "status": str(self.status),
+            "quality_score": self.quality_score,
+            "engine": str(self.engine),
+            "flagged": self.flagged,
+        }
+        if include_text and self.text is not None:
+            d["text"] = self.text
+        if self.diagnostics is not None:  # NEW: only include when present
+            d["diagnostics"] = self.diagnostics
+        return d
+```
+
+```python
+# diagnostics.py
+@dataclass
+class PageDiagnostics:
+    """Rich diagnostic data for a single page."""
+
+    # Image quality metrics (from PyMuPDF pixmap analysis)
+    image_dpi: int | None = None
+    image_count: int = 0
+    has_embedded_text: bool = False
+    text_char_count: int = 0
+
+    # Quality signal breakdown (from QualityAnalyzer)
+    signal_scores: dict[str, float] = field(default_factory=dict)
+    signal_details: dict[str, dict] = field(default_factory=dict)
+
+    # Timing data
+    extraction_time_ms: float = 0.0
+    analysis_time_ms: float = 0.0
+    ocr_time_ms: float = 0.0
+
+    # Decision trace
+    decision: str = ""  # "existing_good", "tesseract_good", "flagged_for_surya", etc.
+    threshold_used: float = 0.85
+    score_before_ocr: float | None = None
+    score_after_ocr: float | None = None
+
+    def to_dict(self) -> dict:
+        """Serialize for JSON output. Omit None values."""
+        d = {}
+        for k, v in self.__dict__.items():
+            if v is not None and v != 0 and v != 0.0 and v != "" and v != {}:
+                d[k] = v
+        return d
+```
+
+### Pattern 2: CLI Subprocess Evaluator
+
+**What:** Invoke `claude` or `codex` CLI as a subprocess with structured prompts and parse JSON responses. Abstract over CLI differences with a common adapter.
+
+**When to use:** For LLM-based evaluation of OCR output quality, where we want to use frontier models as judges without embedding an API client in the project.
+
+**Trade-offs:** Depends on CLI tools being installed. Subprocess invocation is slower than direct API calls but avoids API key management and dependency coupling. JSON schema enforcement ensures parseable responses.
+
+**Example:**
+
+```python
+# eval/cli_adapter.py
+from dataclasses import dataclass
+from enum import StrEnum
+
+class EvaluatorEngine(StrEnum):
+    CLAUDE = "claude"
+    CODEX = "codex"
+
+@dataclass
+class EvaluatorConfig:
+    engine: EvaluatorEngine = EvaluatorEngine.CLAUDE
+    model: str | None = None  # None = default model
+    timeout: int = 120
+    max_retries: int = 2
+
+def build_command(
+    config: EvaluatorConfig,
+    prompt: str,
+    json_schema: dict | None = None,
+) -> list[str]:
+    """Build subprocess command for the configured evaluator engine."""
+    if config.engine == EvaluatorEngine.CLAUDE:
+        cmd = ["claude", "-p", prompt, "--output-format", "json"]
+        if json_schema is not None:
+            import json
+            cmd.extend(["--json-schema", json.dumps(json_schema)])
+        if config.model:
+            cmd.extend(["--model", config.model])
+        return cmd
+
+    elif config.engine == EvaluatorEngine.CODEX:
+        cmd = ["codex", "exec", prompt, "--json"]
+        if json_schema is not None:
+            # Write schema to temp file for codex --output-schema
+            import json
+            import tempfile
+            schema_file = tempfile.NamedTemporaryFile(
+                mode="w", suffix=".json", delete=False
+            )
+            json.dump(json_schema, schema_file)
+            schema_file.close()
+            cmd.extend(["--output-schema", schema_file.name])
+        return cmd
+
+    raise ValueError(f"Unknown engine: {config.engine}")
+```
+
+```python
+# eval/runner.py
+import json
+import subprocess
+
+def run_evaluation(
+    config: EvaluatorConfig,
+    prompt: str,
+    json_schema: dict | None = None,
+) -> dict:
+    """Run a single evaluation and return parsed JSON result."""
+    cmd = build_command(config, prompt, json_schema)
+
+    result = subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True,
+        timeout=config.timeout,
     )
 
-    if batch_job and batch_job.pages:
-        # Load models (cached if available)
-        model_manager = ModelManager.instance()
+    if result.returncode != 0:
+        raise RuntimeError(f"Evaluator failed: {result.stderr}")
 
-        # Single batch call for all pages
-        results_map = process_batch(
-            batch_job, model_manager, surya_cfg
-        )
+    response = json.loads(result.stdout)
 
-        # Apply results back to file outputs
-        for file_result in flagged_results:
-            apply_surya_results(file_result, results_map)
+    # Claude returns structured_output when --json-schema used
+    if config.engine == EvaluatorEngine.CLAUDE and json_schema:
+        return response.get("structured_output", response.get("result", {}))
+
+    return response
 ```
 
-#### surya.py Changes
+### Pattern 3: Template-Driven Evaluation
 
-**Current:**
+**What:** Store evaluation prompts as template files with placeholder substitution, paired with JSON schemas that enforce response structure. Version templates alongside code.
+
+**When to use:** When evaluation criteria may evolve and you want to iterate on prompts without changing code.
+
+**Trade-offs:** Templates add a layer of indirection but enable non-code changes to evaluation criteria. JSON schemas ensure responses are always parseable.
+
+**Example:**
+
 ```python
-def load_models(device: str | None = None) -> dict[str, Any]:
-    """Load Surya/Marker models once for reuse."""
-    ...
+# eval/templates/quality_eval.txt
+You are evaluating OCR output quality for an academic text.
+
+## Source Information
+- Filename: {filename}
+- Page: {page_number}
+- OCR Engine: {engine}
+- Quality Score (automated): {quality_score}
+
+## OCR Text Output
+```
+{ocr_text}
 ```
 
-**Proposed:**
+## Evaluation Criteria
+Rate the following on a scale of 1-5:
+1. **Readability**: Is the text readable and coherent?
+2. **Completeness**: Does it appear to capture all text from the page?
+3. **Accuracy**: Are words spelled correctly? Are there garbled sections?
+4. **Formatting**: Are paragraphs, headings, and structure preserved?
+5. **Academic Fidelity**: Are citations, footnotes, and special terms preserved?
+
+Provide an overall quality rating (1-5) and explain any issues found.
+```
+
+```json
+// eval/templates/quality_eval_schema.json
+{
+  "type": "object",
+  "required": ["readability", "completeness", "accuracy", "formatting",
+               "academic_fidelity", "overall", "issues"],
+  "properties": {
+    "readability": {"type": "integer", "minimum": 1, "maximum": 5},
+    "completeness": {"type": "integer", "minimum": 1, "maximum": 5},
+    "accuracy": {"type": "integer", "minimum": 1, "maximum": 5},
+    "formatting": {"type": "integer", "minimum": 1, "maximum": 5},
+    "academic_fidelity": {"type": "integer", "minimum": 1, "maximum": 5},
+    "overall": {"type": "integer", "minimum": 1, "maximum": 5},
+    "issues": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "category": {"type": "string"},
+          "description": {"type": "string"},
+          "severity": {"type": "string", "enum": ["low", "medium", "high"]}
+        }
+      }
+    }
+  }
+}
+```
+
+### Pattern 4: Corpus Manifest
+
+**What:** A committed JSON manifest describing the test corpus structure, with actual PDF files gitignored and referenced via symlinks. Ground truth text is committed as plain text files.
+
+**When to use:** When test data is too large or sensitive to commit but you need reproducible evaluation.
+
+**Trade-offs:** Requires manual corpus setup per machine. Manifest ensures consistency even when corpus files differ.
+
+**Example:**
+
+```json
+// tests/corpus/corpus.json
+{
+  "version": 1,
+  "description": "ScholarDoc OCR evaluation corpus",
+  "files": [
+    {
+      "id": "heidegger-bt",
+      "filename": "heidegger-being-and-time.pdf",
+      "pages": 589,
+      "languages": ["en", "de"],
+      "characteristics": ["dense_philosophy", "german_terms", "footnotes"],
+      "ground_truth_pages": [1, 2, 3, 45, 100],
+      "notes": "Macquarrie/Robinson translation with heavy German terminology"
+    },
+    {
+      "id": "levinas-ti",
+      "filename": "levinas-totality-infinity.pdf",
+      "pages": 307,
+      "languages": ["en", "fr"],
+      "characteristics": ["french_terms", "long_sentences"],
+      "ground_truth_pages": [1, 10, 50],
+      "notes": "Lingis translation with French philosophical vocabulary"
+    }
+  ],
+  "setup_instructions": "Symlink PDFs into tests/corpus/pdfs/. See README.md."
+}
+```
+
+## Data Flow
+
+### Flow 1: Diagnostic Data Capture (During Pipeline)
+
+```
+_tesseract_worker() or run_pipeline()
+         |
+         v
+   Extract text (processor.py)
+         |
+         +---> DiagnosticCollector.record_extraction(page, timing)
+         |
+         v
+   Analyze quality (quality.py)
+         |
+         +---> DiagnosticCollector.record_analysis(page, quality_result)
+         |
+         v
+   OCR if needed (tesseract.py or surya.py)
+         |
+         +---> DiagnosticCollector.record_ocr(page, engine, timing)
+         |
+         v
+   Build PageResult with diagnostics attached
+         |
+         v
+   FileResult.to_dict() includes diagnostics in JSON output
+```
+
+**Key constraint:** `_tesseract_worker` runs in a subprocess via ProcessPoolExecutor. The DiagnosticCollector must be instantiable in worker processes (no singletons, no shared state). Each worker creates its own collector and attaches data to PageResult before returning.
+
+### Flow 2: Evaluation Workflow (Post-Hoc, Separate from Pipeline)
+
+```
+User runs: ocr evaluate tests/corpus/pdfs/ --evaluator claude
+
+         |
+         v
+   1. Discover corpus (corpus.py)
+      - Read corpus.json manifest
+      - Verify PDFs exist via symlinks
+      - Load ground truth text for reference pages
+         |
+         v
+   2. Run OCR pipeline on corpus PDFs (reuse run_pipeline)
+      - With --diagnostics enabled
+      - Output to eval_results/runs/<timestamp>/
+         |
+         v
+   3. For each page with ground truth:
+      - Load template (templates/quality_eval.txt)
+      - Substitute page data into template
+      - Invoke evaluator (runner.py -> subprocess claude/codex)
+      - Parse JSON response (structured_output)
+      - Store per-page evaluation scores
+         |
+         v
+   4. Aggregate results (results.py)
+      - Per-file and per-page scores
+      - Correlation with automated quality_score
+      - Write summary.json
+         |
+         v
+   5. Optional: Compare against baseline
+      - Load previous baseline from eval_results/baselines/
+      - Compute deltas
+      - Flag regressions
+```
+
+### Flow 3: Analysis and Calibration
+
+```
+User runs: ocr analyze eval_results/runs/2026-02-17T10-30-00/
+
+         |
+         v
+   analysis.py loads:
+   - Pipeline diagnostic data (from enriched .json)
+   - Evaluation results (from eval runner output)
+   - Ground truth annotations (from corpus)
+         |
+         v
+   Compute:
+   - Score distribution histograms
+   - Threshold sensitivity: at what threshold does flag rate change?
+   - Signal correlation: which signals predict LLM evaluation scores?
+   - False positive analysis: pages flagged but LLM says quality is fine
+   - False negative analysis: pages not flagged but LLM finds issues
+   - Per-signal contribution analysis
+         |
+         v
+   Output:
+   - analysis_report.json (machine-readable)
+   - analysis_report.txt (human-readable summary)
+   - Specific recommendations:
+     "Raise garbled weight from 0.4 to 0.5"
+     "Add word 'apodeictic' to dictionary whitelist"
+     "Lower confidence floor from 0.3 to 0.2"
+```
+
+### Flow 4: Smart Page Selection for Evaluation
+
+Not every page needs LLM evaluation (expensive). Smart selection prioritizes:
+
+```
+All pages in corpus
+         |
+         v
+   Filter 1: Pages with ground truth  --> always evaluate
+         |
+         v
+   Filter 2: Gray zone pages          --> quality_score within
+             (threshold +/- 0.05)         GRAY_ZONE of threshold
+         |
+         v
+   Filter 3: Engine-transition pages   --> pages where Tesseract
+             (Surya was triggered)         flagged and Surya ran
+         |
+         v
+   Filter 4: Random sample of          --> statistical coverage
+             remaining pages               without exhaustive eval
+         |
+         v
+   Selected pages for evaluation
+```
+
+This integrates with the existing `QualityAnalyzer.GRAY_ZONE = 0.05` constant and the `PageResult.flagged` / `PageResult.engine` fields.
+
+## Integration Points
+
+### Where Diagnostic Metrics Attach
+
+**Decision: Enrich `PageResult.diagnostics` as optional dict field.**
+
+Rationale:
+- `PageResult` already flows through the entire pipeline
+- Adding `diagnostics: dict | None = None` is backward-compatible
+- `to_dict()` already supports conditional inclusion (see `include_text`)
+- A dict (not a separate dataclass) keeps serialization simple and avoids import cycles in worker processes
+- The `diagnostics.py` module provides `PageDiagnostics.to_dict()` for construction
+
+**Rejected alternative:** Separate `DiagnosticResult` dataclass linked by page number. This would require joining data structures at output time and adds complexity without benefit since the data naturally belongs to the page.
+
+### Where Image Quality Analysis Integrates
+
+**Decision: Before Tesseract, during the extraction phase in `_tesseract_worker`.**
+
+The extraction phase already calls `processor.extract_text_by_page()` which opens the PDF with PyMuPDF. Image quality metrics (DPI, image count, text presence) can be collected from the same `fitz.Document` handle without re-opening the file.
+
 ```python
-def load_models(
-    device: str | None = None,
-    use_cache: bool = True,
-) -> dict[str, Any]:
-    """Load Surya/Marker models, optionally from cache."""
-    if use_cache:
-        from .model_cache import ModelManager, ModelCacheConfig
-        config = ModelCacheConfig(device=device)
-        return ModelManager.instance(config).get_models()
-
-    # Original implementation for explicit non-cached use
-    ...
+# In _tesseract_worker, after extract_text_by_page:
+if diagnostics_enabled:
+    image_metrics = collect_image_metrics(input_path)  # uses fitz
+    # Attach to each page's diagnostic data later
 ```
 
-#### mcp_server.py Changes
+**Not after Tesseract:** By then we have already committed to OCR. Pre-OCR image metrics help explain WHY quality is low.
 
-**Current:** Each request calls `run_pipeline()` which loads models fresh.
+**Not as a separate pass:** Opening the PDF twice is wasteful. The extraction phase is the natural place.
 
-**Proposed:**
-```python
-# At module level or in main()
-from .model_cache import ModelManager, ModelCacheConfig
+### Where the Evaluation Framework Lives
 
-def _ensure_models_ready():
-    """Pre-warm models if configured."""
-    config = ModelCacheConfig(
-        device=os.environ.get("SCHOLARDOC_DEVICE"),
-        ttl_seconds=float(os.environ.get("SCHOLARDOC_MODEL_TTL", 1800)),
-    )
-    ModelManager.instance(config)
+**Decision: New `eval/` subpackage within `src/scholardoc_ocr/`.**
 
-# In ocr() and ocr_async():
-# Models automatically shared via ModelManager singleton
-```
+- It is part of the scholardoc_ocr package for import convenience
+- It is a subpackage (not flat module) because it has multiple components
+- It is never imported by the pipeline itself -- only by CLI evaluation commands
+- Templates and schemas live as data files within the subpackage
 
-## Component Boundaries
+**Rejected alternative:** Separate top-level package (e.g., `scholardoc_eval`). Adds packaging complexity for no real benefit. The eval code shares types with the main package.
 
-| Component | Responsibility | Depends On |
-|-----------|---------------|------------|
-| `model_cache.py` | Model lifecycle, TTL eviction | `surya.py`, `device.py` |
-| `device.py` | Device detection, MPS validation | PyTorch |
-| `batch.py` | Page aggregation, result mapping | `processor.py`, `model_cache.py` |
-| `pipeline.py` | Orchestration (uses batch module) | All above |
-| `mcp_server.py` | Request handling (uses cached models) | `pipeline.py`, `model_cache.py` |
+### How Evaluation Templates Get Versioned
 
-## Data Flow Changes
+**Decision: Templates stored as files in `eval/templates/`, committed to git, loaded at runtime.**
 
-### Before (Current)
+- Each template is a `.txt` file (prompt) paired with a `.json` file (JSON schema)
+- Templates use simple `{placeholder}` substitution (not Jinja2) to avoid dependencies
+- Template "versions" are tracked by git history, not explicit version numbers
+- A `TEMPLATES.md` file in the templates directory documents each template's purpose
 
-```
-File 1 flagged pages -> Surya call 1 -> Result 1
-File 2 flagged pages -> Surya call 2 -> Result 2
-File 3 flagged pages -> Surya call 3 -> Result 3
-```
+### How CLI-Based Evaluator Invocations Get Orchestrated
 
-### After (Cross-File Batching)
+**Decision: `eval/cli_adapter.py` abstracts over `claude` and `codex` CLI differences.**
 
-```
-File 1 flagged pages -+
-File 2 flagged pages -+-> Aggregate -> Single Surya call -> Distribute results
-File 3 flagged pages -+
-```
+Both tools support:
+- Non-interactive prompt execution (`claude -p` / `codex exec`)
+- JSON output (`--output-format json` / `--json`)
+- Schema enforcement (`--json-schema` / `--output-schema`)
 
-### Memory Timeline
+The adapter provides a unified `run_evaluation(config, prompt, schema)` function. The runner handles retries, timeouts, and error normalization.
 
-**Current:**
-```
-Request 1: [Load models ~~~~~ Process ~~~~~ Unload]
-Request 2: [Load models ~~~~~ Process ~~~~~ Unload]
-                ^^ Redundant 30-60s model load
-```
+### How the Test Corpus Integrates
 
-**With Caching:**
-```
-Request 1: [Load models ~~~~~ Process ~~~~~]
-Request 2:                    [Process ~~~~~]
-                              ^^ Instant start
-           [...TTL expires...] [Unload]
-```
+**Decision: `tests/corpus/` directory with committed manifest, gitignored PDFs.**
+
+- `corpus.json` manifest is committed -- describes expected files and their characteristics
+- `pdfs/` subdirectory is gitignored -- contains symlinks to actual PDF files
+- `ground_truth/` contains manually curated text for specific pages (committed)
+- `README.md` explains setup for new developers
+
+The `eval/corpus.py` module reads the manifest and validates that expected files exist.
+
+## Internal Boundaries
+
+| Boundary | Communication | Coupling | Notes |
+|----------|---------------|----------|-------|
+| pipeline.py <-> diagnostics.py | Direct function call | TIGHT | DiagnosticCollector called from worker |
+| pipeline.py <-> eval/ | NONE | ZERO | Eval never runs during pipeline |
+| eval/runner.py <-> claude/codex CLI | subprocess.run | LOOSE | JSON over stdout |
+| eval/results.py <-> analysis.py | File I/O (JSON) | LOOSE | Analysis reads result files |
+| analysis.py <-> quality.py | Information flow only | NONE | Analysis outputs recommendations, human applies changes |
+| types.py <-> diagnostics.py | PageResult.diagnostics field | TIGHT | Core data enrichment |
+
+## Scaling Considerations
+
+| Concern | 10 pages evaluated | 100 pages evaluated | 1000 pages evaluated |
+|---------|--------------------|---------------------|----------------------|
+| Evaluation cost | ~$0.50 (LLM calls) | ~$5 | ~$50 |
+| Evaluation time | ~2 min | ~20 min | ~3 hours |
+| Result storage | ~50KB JSON | ~500KB JSON | ~5MB JSON |
+| Diagnostic data overhead | Negligible | ~1MB extra in output | ~10MB extra |
+
+### Scaling Priorities
+
+1. **First bottleneck: LLM evaluation cost and time.** Smart page selection (gray zone + ground truth pages) reduces evaluated pages from N to ~0.1N-0.2N. This is the single most important optimization.
+
+2. **Second bottleneck: Diagnostic data in worker processes.** The `_tesseract_worker` runs in subprocess. Diagnostic collection must be lightweight (no GPU operations, no network calls). Use only PyMuPDF operations that are already happening.
+
+3. **Not a bottleneck: Result storage.** JSON files are small even for large corpora.
+
+## Anti-Patterns
+
+### Anti-Pattern 1: Coupling Evaluation to Pipeline Execution
+
+**What people do:** Run LLM evaluation inside `run_pipeline()` after each page.
+**Why it's wrong:** Evaluation is expensive (1-2s per page via LLM). Pipeline should finish fast. Mixing concerns makes pipeline untestable without LLM access.
+**Do this instead:** Pipeline captures diagnostic data. Evaluation runs separately as a post-hoc workflow.
+
+### Anti-Pattern 2: Storing Ground Truth in the Repository
+
+**What people do:** Commit large PDF files and expected-output text files to git.
+**Why it's wrong:** PDFs are large binaries. Git is bad at binary diffs. Repository bloats.
+**Do this instead:** Commit only the manifest (corpus.json) and ground truth text files. PDFs referenced via symlinks, gitignored.
+
+### Anti-Pattern 3: Unversioned Prompt Templates
+
+**What people do:** Embed evaluation prompts as Python string literals in code.
+**Why it's wrong:** Changing prompts requires code changes. Hard to track what prompt produced what results. Can not iterate on prompts independently of code.
+**Do this instead:** Store templates as files. Load at runtime. Git tracks template history.
+
+### Anti-Pattern 4: Making DiagnosticCollector a Singleton
+
+**What people do:** Create a global singleton diagnostic collector for the whole pipeline.
+**Why it's wrong:** `_tesseract_worker` runs in subprocess pools. Singletons do not survive process boundaries. Each worker needs its own collector.
+**Do this instead:** Create a DiagnosticCollector per worker invocation. Attach collected data to PageResult before returning from the worker.
+
+### Anti-Pattern 5: Returning Structured Analysis Recommendations as Automated Config Changes
+
+**What people do:** Have the analysis module automatically update quality.py weights and thresholds.
+**Why it's wrong:** Quality tuning requires human judgment. Automated changes could degrade quality for edge cases.
+**Do this instead:** Output recommendations as a report. Human reviews and applies changes.
 
 ## Suggested Build Order
 
-Based on dependencies and risk:
+Based on dependencies:
 
-### Phase 1: Device Configuration (Foundation)
-1. Create `device.py` with device detection
-2. Add `SCHOLARDOC_DEVICE` environment variable support
-3. Verify MPS works for Surya operations
-4. Unit tests for device detection
+### Phase 1: Diagnostic Infrastructure (Foundation)
+1. Add `diagnostics: dict | None = None` to `PageResult`
+2. Create `diagnostics.py` with `PageDiagnostics` dataclass
+3. Add image metrics collection (reuse fitz during extraction)
+4. Wire `DiagnosticCollector` into `_tesseract_worker`
+5. Add `--diagnostics` flag to CLI
+6. Enrich JSON metadata output with diagnostic data
 
-**Rationale:** Low risk, enables MPS testing. No changes to core pipeline.
+**Depends on:** Nothing new. Only modifies existing types.py and pipeline.py.
+**Enables:** Evaluation framework and analysis.
 
-### Phase 2: Model Caching (High Value)
-1. Create `model_cache.py` with ModelManager singleton
-2. Thread-safe model access with TTL eviction
-3. Modify `surya.py` to use cache by default
-4. Update `mcp_server.py` to share models across requests
-5. Add model preload option
+### Phase 2: Test Corpus Setup
+1. Create `tests/corpus/` directory structure
+2. Write `corpus.json` manifest schema
+3. Create `eval/corpus.py` for corpus management
+4. Add ground truth text for reference pages
+5. Document corpus setup in README
 
-**Rationale:** Highest impact on MCP server performance. Independent of batching.
+**Depends on:** Nothing.
+**Enables:** Evaluation runner.
 
-### Phase 3: Cross-File Batching (Complex)
-1. Create `batch.py` with BatchJob infrastructure
-2. Add page extraction/aggregation logic
-3. Implement result distribution back to files
-4. Modify `pipeline.py` to use batch processing
-5. Integration tests with multi-file batches
+### Phase 3: Evaluation Framework
+1. Create `eval/cli_adapter.py` with claude/codex abstraction
+2. Create `eval/runner.py` with subprocess invocation
+3. Write initial prompt templates and JSON schemas
+4. Create `eval/results.py` for result storage
+5. Add `evaluate` CLI subcommand
+6. Smart page selection logic
 
-**Rationale:** Most complex change, benefits from stable model caching.
+**Depends on:** Phase 2 (needs corpus). Phase 1 (uses diagnostic data in prompts).
+**Enables:** Analysis.
 
-### Phase 4: Benchmarking (Validation)
-1. Add `pytest-benchmark` dependency
-2. Create benchmark fixtures and sample data
-3. Baseline benchmarks for current performance
-4. Comparative benchmarks for optimizations
-5. CI integration for regression detection
+### Phase 4: Analysis and Calibration
+1. Create `analysis.py` with score distribution analysis
+2. Add threshold sensitivity analysis
+3. Add signal correlation analysis
+4. Add false positive/negative detection
+5. Generate human-readable reports
 
-**Rationale:** Validates previous phases, catches regressions.
+**Depends on:** Phase 3 (needs evaluation results).
+**Enables:** Targeted improvements (Phase 5).
 
-## Scalability Considerations
+### Phase 5: Targeted Improvements
+1. Apply findings from analysis to quality.py (weights, thresholds)
+2. Expand dictionary.py whitelist based on false positive data
+3. Improve postprocess.py transforms based on evaluation feedback
+4. Re-run evaluation to measure improvement
+5. Save baseline for regression detection
 
-| Concern | At 10 pages | At 100 pages | At 1000 pages |
-|---------|-------------|--------------|---------------|
-| Batch PDF size | ~5MB | ~50MB | ~500MB |
-| Surya memory | ~3GB | ~5GB | ~8GB+ |
-| Temp disk | Negligible | ~100MB | ~1GB |
-| Processing time | ~30s | ~2min | ~15min |
-
-**Recommendations:**
-- For 1000+ pages, implement chunked batching (process 100 pages at a time)
-- Monitor memory pressure on MPS (Apple Silicon sensitive to memory)
-- Consider `PYTORCH_MPS_HIGH_WATERMARK_RATIO` for memory-constrained systems
-
-## Anti-Patterns to Avoid
-
-### 1. Loading Models in Worker Processes
-**Wrong:** Loading Surya models inside `_tesseract_worker`
-**Why:** Worker processes can't share GPU memory; models would load N times
-**Instead:** Keep models in main process, batch Surya in main thread
-
-### 2. Global Singleton Without Lifecycle Management
-**Wrong:** `_models = None; def get_models(): global _models; ...`
-**Why:** No TTL, no cleanup, memory leak on long-running server
-**Instead:** ModelManager class with explicit lifecycle
-
-### 3. Mixing Async and Synchronous Model Access
-**Wrong:** Calling `ModelManager.get_models()` from both sync and async code
-**Why:** Thread safety issues, potential deadlocks
-**Instead:** Always access from sync context; use `asyncio.to_thread()` for async wrappers
-
-### 4. Assuming MPS Parity with CUDA
-**Wrong:** Expecting identical batch sizes and performance on MPS
-**Why:** MPS has different memory characteristics and some ops fall back to CPU
-**Instead:** Profile on target device, adjust batch sizes accordingly
-
-## Configuration Schema
-
-```python
-# Extended PipelineConfig
-@dataclass
-class PipelineConfig:
-    # ... existing fields ...
-
-    # New performance fields
-    device: str | None = None           # None = auto-detect
-    use_model_cache: bool = True        # Enable model caching
-    model_ttl_seconds: float = 1800     # Cache TTL (30 min)
-    batch_cross_files: bool = True      # Enable cross-file batching
-    surya_batch_size: int = 50          # Pages per Surya batch
-```
+**Depends on:** Phase 4 (needs analysis findings).
 
 ## Sources
 
-- [PyTorch MPS Backend Documentation](https://docs.pytorch.org/docs/stable/notes/mps.html) - MPS requirements, capabilities, limitations
-- [Apple Developer: Accelerated PyTorch Training on Mac](https://developer.apple.com/metal/pytorch/) - Unified memory benefits, setup
-- [Marker GitHub Repository](https://github.com/VikParuchuri/marker) - PdfConverter usage, batch processing
-- [Surya GitHub Repository](https://github.com/datalab-to/surya) - Device configuration, batch size settings
-- [pytest-benchmark Documentation](https://pytest-benchmark.readthedocs.io/) - Benchmarking fixture usage
-- [Streamlit Caching Guide](https://docs.streamlit.io/develop/concepts/architecture/caching) - Singleton pattern for ML models
+- [Claude Code Headless Mode Documentation](https://code.claude.com/docs/en/headless) -- CLI invocation with `-p`, `--output-format json`, `--json-schema` for structured evaluation output (HIGH confidence)
+- [Codex CLI Reference](https://developers.openai.com/codex/cli/reference/) -- `codex exec`, `--json`, `--output-schema` for structured output (HIGH confidence)
+- [OmniAI OCR Benchmark](https://getomni.ai/blog/ocr-benchmark) -- LLM-as-judge pattern for OCR evaluation using GPT-4o (MEDIUM confidence)
+- [Pdfquad: PDF Quality Assessment](https://bitsgalore.org/2024/12/13/pdf-quality-assessment-for-digitisation-batches-with-python-pymupdf-and-pillow.html) -- PyMuPDF + Pillow for image quality metrics, DPI extraction, compression analysis (HIGH confidence)
+- [OCR-D Ground Truth Corpus](https://github.com/OCR-D/gt_structure_text) -- Corpus management patterns for OCR ground truth (MEDIUM confidence)
+- [PreP-OCR Pipeline](https://arxiv.org/html/2505.20429v1) -- Two-stage pipeline combining image restoration with semantic-aware post-OCR correction (MEDIUM confidence)
+- [OCR Accuracy Metrics Survey](https://dl.acm.org/doi/10.1145/3476887.3476888) -- CER, WER, and structured evaluation metrics for OCR (HIGH confidence)
+- Existing codebase analysis of all modules in `src/scholardoc_ocr/` (HIGH confidence)
+
+---
+*Architecture research for: Diagnostic Intelligence & Evaluation Framework*
+*Researched: 2026-02-17*
