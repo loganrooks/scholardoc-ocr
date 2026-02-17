@@ -53,7 +53,11 @@ See .planning/milestones/v2.1-ROADMAP.md for v2.1 details. 4 phases, 17 plans, 2
   3. User can identify pages where quality signals disagree (e.g., high confidence but high garbled score) via explicit signal disagreement flags in the diagnostic output
   4. For pages processed by both engines, user can see what Surya changed: a structured diff (additions, deletions, substitutions) between Tesseract and Surya text is preserved in diagnostics
   5. Each page in the diagnostic output carries a struggle category label (bad_scan, character_confusion, vocabulary_miss, layout_error, language_confusion, signal_disagreement, gray_zone, surya_insufficient) explaining the dominant failure mode
-**Plans**: TBD
+**Plans:** 3 plans
+Plans:
+- [ ] 15-01-PLAN.md -- Diagnostic data model: dataclasses, utility functions, PageResult integration
+- [ ] 15-02-PLAN.md -- Always-captured diagnostics: pipeline wiring, postprocess counters
+- [ ] 15-03-PLAN.md -- Diagnostics-gated features: image quality, engine diff, CLI flag, JSON sidecar
 
 ### Phase 16: Test Corpus & Ground Truth
 **Goal**: A curated test corpus of difficult philosophy PDFs exists with human-verified ground truth text, enabling repeatable evaluation
@@ -117,7 +121,7 @@ Phases 15 and 16 are parallelizable foundations. After both complete: 17 -> 18 -
 | 1-7 | v1.0 | 17/17 | Complete | 2026-02-02 |
 | 8-10 | v2.0 | 8/8 | Complete | 2026-02-02 |
 | 11-14 | v2.1 | 17/17 | Complete | 2026-02-04 |
-| 15. Diagnostic Infrastructure | v3.0 | 0/TBD | Not started | - |
+| 15. Diagnostic Infrastructure | v3.0 | 0/3 | Planning complete | - |
 | 16. Test Corpus & Ground Truth | v3.0 | 0/TBD | Not started | - |
 | 17. Evaluation Framework | v3.0 | 0/TBD | Not started | - |
 | 18. Quality Metrics & Results | v3.0 | 0/TBD | Not started | - |
