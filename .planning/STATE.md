@@ -10,16 +10,16 @@ See: .planning/PROJECT.md (updated 2026-02-17)
 ## Current Position
 
 Phase: 15 of 20 (Diagnostic Infrastructure)
-Plan: 2 of 3 in current phase
-Status: Executing
-Last activity: 2026-02-17 — Completed 15-02-PLAN.md (Pipeline Diagnostic Wiring)
+Plan: 3 of 3 in current phase (PHASE COMPLETE)
+Status: Phase Complete
+Last activity: 2026-02-17 — Completed 15-03-PLAN.md (Diagnostics-Gated Features + JSON Sidecar)
 
-Progress: v1.0 [##########] | v2.0 [##########] | v2.1 [##########] | v3.0 [#░░░░░░░░░] ~10%
+Progress: v1.0 [##########] | v2.0 [##########] | v2.1 [##########] | v3.0 [##░░░░░░░░] ~17%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 42 (v1.0: 17, v2.0: 8, v2.1: 17)
+- Total plans completed: 45 (v1.0: 17, v2.0: 8, v2.1: 17, v3.0: 3)
 - Average duration: ~4 min/plan
 - Total milestones: 3 shipped, 1 in progress
 
@@ -33,6 +33,7 @@ Progress: v1.0 [##########] | v2.0 [##########] | v2.1 [##########] | v3.0 [#░
 | v3.0 Diagnostic Intelligence | 6 | TBD | — |
 | Phase 15 P01 | 3min | 2 tasks | 2 files |
 | Phase 15 P02 | 4min | 2 tasks | 2 files |
+| Phase 15 P03 | 4min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -49,6 +50,9 @@ Recent for v3.0:
 - [Phase 15]: Primitive-only dataclasses for ProcessPoolExecutor pickling safety
 - [Phase 15]: Postprocess counts approximate per-page (global counts), Phase 19 refines
 - [Phase 15]: Error-resilient diagnostics (try/except, fallback to None, never breaks pipeline)
+- [Phase 15]: Lazy cv2/numpy import in analyze_image_quality to avoid weight for non-diagnostics runs
+- [Phase 15]: 150 DPI page rendering for image quality (4x memory savings vs 300 DPI)
+- [Phase 15]: DIAG-04 text preservation timing: capture BEFORE map_results_to_files mutates text
 
 ### Pending Todos
 
@@ -68,5 +72,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-17
-Stopped at: Completed 15-02-PLAN.md (Pipeline Diagnostic Wiring)
+Stopped at: Completed 15-03-PLAN.md (Diagnostics-Gated Features + JSON Sidecar) -- Phase 15 COMPLETE
 Resume file: None
