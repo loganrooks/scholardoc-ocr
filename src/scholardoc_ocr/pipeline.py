@@ -116,6 +116,18 @@ def _tesseract_worker(input_path: Path, output_dir: Path, config_dict: dict) -> 
                     diag = build_always_diagnostics(qr, threshold) if qr else None
                     if diag is not None:
                         diag.postprocess_counts = dict(pp_counts)
+                        # DIAG-01: Image quality (--diagnostics only)
+                        if config_dict.get("diagnostics", False):
+                            try:
+                                from .diagnostics import analyze_image_quality
+                                diag.image_quality = analyze_image_quality(
+                                    input_path, i
+                                )
+                            except Exception:
+                                logger.warning(
+                                    "%s: page %d image quality analysis failed",
+                                    input_path.name, i,
+                                )
                     page_diagnostics.append(diag)
                 except Exception:
                     logger.warning(
@@ -212,6 +224,18 @@ def _tesseract_worker(input_path: Path, output_dir: Path, config_dict: dict) -> 
                 )
                 if diag is not None:
                     diag.postprocess_counts = dict(tess_pp_counts)
+                    # DIAG-01: Image quality (--diagnostics only)
+                    if config_dict.get("diagnostics", False):
+                        try:
+                            from .diagnostics import analyze_image_quality
+                            diag.image_quality = analyze_image_quality(
+                                input_path, i
+                            )
+                        except Exception:
+                            logger.warning(
+                                "%s: page %d image quality analysis failed",
+                                input_path.name, i,
+                            )
                 tess_diagnostics.append(diag)
             except Exception:
                 logger.warning(
@@ -551,8 +575,50 @@ def run_pipeline(
                         if fallback_occurred:
                             any_fallback = True
 
+                        # DIAG-04: Preserve Tesseract text before Surya overwrite
+                        if config.diagnostics:
+                            try:
+                                for fp in sub_batch:
+                                    page_result = fp.file_result.pages[fp.page_number]
+                                    if (
+                                        page_result.diagnostics is not None
+                                        and page_result.text is not None
+                                    ):
+                                        page_result.diagnostics.tesseract_text = (
+                                            page_result.text
+                                        )
+                            except Exception:
+                                logger.warning(
+                                    "DIAG-04: Tesseract text preservation failed"
+                                )
+
                         # Map results back for this sub-batch
                         map_results_to_files(sub_batch, surya_markdown, analyzer)
+
+                        # DIAG-04: Compute engine diff after Surya text is in place
+                        if config.diagnostics:
+                            try:
+                                from .diagnostics import compute_engine_diff
+                                for fp in sub_batch:
+                                    page_result = fp.file_result.pages[
+                                        fp.page_number
+                                    ]
+                                    if (
+                                        page_result.diagnostics is not None
+                                        and page_result.diagnostics.tesseract_text
+                                        is not None
+                                        and page_result.text is not None
+                                    ):
+                                        page_result.diagnostics.engine_diff = (
+                                            compute_engine_diff(
+                                                page_result.diagnostics.tesseract_text,
+                                                page_result.text,
+                                            )
+                                        )
+                            except Exception:
+                                logger.warning(
+                                    "DIAG-04: Engine diff computation failed"
+                                )
 
                         # Clean up this sub-batch's combined PDF
                         if combined_pdf.exists():
@@ -684,6 +750,53 @@ def run_pipeline(
                 metadata = file_result.to_dict(include_text=False)
                 json_path = final_dir / f"{stem}.json"
                 json_path.write_text(json.dumps(metadata, indent=2), encoding="utf-8")
+
+        # --- Write diagnostic sidecar files (DIAG-08, --diagnostics only) ---
+        if config.diagnostics:
+            import datetime
+
+            for file_result in file_results:
+                if file_result.success and file_result.output_path:
+                    try:
+                        stem = Path(file_result.output_path).stem
+                        sidecar = {
+                            "version": "1.0",
+                            "filename": file_result.filename,
+                            "generated_at": datetime.datetime.now(
+                                datetime.timezone.utc
+                            ).isoformat(),
+                            "pipeline_config": {
+                                "quality_threshold": config.quality_threshold,
+                                "diagnostics": True,
+                            },
+                            "pages": [],
+                        }
+                        for page in file_result.pages:
+                            page_data = {
+                                "page_number": page.page_number,
+                                "quality_score": page.quality_score,
+                                "engine": str(page.engine),
+                                "flagged": page.flagged,
+                                "status": str(page.status),
+                            }
+                            if page.diagnostics is not None:
+                                page_data["diagnostics"] = (
+                                    page.diagnostics.to_dict()
+                                )
+                            sidecar["pages"].append(page_data)
+
+                        sidecar_path = (
+                            final_dir / f"{stem}.diagnostics.json"
+                        )
+                        sidecar_path.write_text(
+                            json.dumps(sidecar, indent=2, default=str),
+                            encoding="utf-8",
+                        )
+                    except Exception:
+                        logger.warning(
+                            "DIAG-08: Sidecar write failed for %s",
+                            file_result.filename,
+                        )
 
         # --- Clean up .txt files unless extract_text enabled ---
         if not config.extract_text:
