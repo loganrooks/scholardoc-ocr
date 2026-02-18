@@ -67,7 +67,11 @@ Plans:
   1. tests/corpus/ directory exists with a corpus.json manifest describing each document (title, author, language, challenge profile) and PDF symlinks are gitignored while manifest and ground truth are committed
   2. Ground truth text files exist for 10-20 selected pages per corpus document (4 philosophy PDFs: Simondon, Derrida x3), stored in tests/corpus/ground_truth/ with page-to-file mapping in the manifest
   3. A diagnostic baseline run has been captured for all corpus documents with full diagnostic output stored in tests/corpus/baselines/, establishing the starting point for evaluation
-**Plans**: TBD
+**Plans:** 3 plans
+Plans:
+- [ ] 16-01-PLAN.md -- Corpus infrastructure: directory structure, manifest, helper scripts
+- [ ] 16-02-PLAN.md -- Baseline capture and coverage-based page selection
+- [ ] 16-03-PLAN.md -- Ground truth creation via Opus transcription and manifest finalization
 
 ### Phase 17: Evaluation Framework
 **Goal**: Users can evaluate OCR quality using LLM-as-judge (claude/codex CLI) with versioned templates, smart page selection, and structured output
@@ -122,7 +126,7 @@ Phases 15 and 16 are parallelizable foundations. After both complete: 17 -> 18 -
 | 8-10 | v2.0 | 8/8 | Complete | 2026-02-02 |
 | 11-14 | v2.1 | 17/17 | Complete | 2026-02-04 |
 | 15. Diagnostic Infrastructure | v3.0 | 3/3 | Complete | 2026-02-17 |
-| 16. Test Corpus & Ground Truth | v3.0 | 0/TBD | Not started | - |
+| 16. Test Corpus & Ground Truth | v3.0 | 0/3 | Not started | - |
 | 17. Evaluation Framework | v3.0 | 0/TBD | Not started | - |
 | 18. Quality Metrics & Results | v3.0 | 0/TBD | Not started | - |
 | 19. Analysis & Calibration | v3.0 | 0/TBD | Not started | - |
