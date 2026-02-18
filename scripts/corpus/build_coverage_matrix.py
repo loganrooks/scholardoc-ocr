@@ -10,7 +10,8 @@ disagreement pages from Phase 15 diagnostic output. It recommends two sets of
 pages for ground truth creation:
 
 - **Difficult pages:** Coverage-based selection ensuring representation of each
-  struggle category, plus all gray zone and signal disagreement pages.
+  struggle category, with sampled gray zone and signal disagreement pages
+  (capped for manageability, with cross-document diversity).
 - **Regression pages:** Clean pages that should always pass quality threshold,
   including ToC, front matter, body text, and bibliography pages.
 
@@ -97,42 +98,100 @@ def build_coverage_matrix(
     return dict(struggle_categories), gray_zone_pages, disagreement_pages, all_pages
 
 
+def _sample_cross_document(
+    pages: list[tuple[str, int]],
+    target: int,
+) -> list[tuple[str, int]]:
+    """Sample pages with cross-document diversity.
+
+    Distributes evenly across documents, picking evenly-spaced pages within each
+    document for representative coverage.
+    """
+    by_doc: dict[str, list[int]] = defaultdict(list)
+    for doc_id, page_num in pages:
+        by_doc[doc_id].append(page_num)
+
+    # Sort page lists within each doc
+    for doc_id in by_doc:
+        by_doc[doc_id].sort()
+
+    result: list[tuple[str, int]] = []
+    doc_ids = sorted(by_doc.keys())
+    per_doc = max(1, target // len(doc_ids))
+    remainder = target - per_doc * len(doc_ids)
+
+    for doc_id in doc_ids:
+        doc_pages = by_doc[doc_id]
+        n = min(per_doc + (1 if remainder > 0 else 0), len(doc_pages))
+        if remainder > 0:
+            remainder -= 1
+        # Pick evenly spaced pages
+        if n >= len(doc_pages):
+            picked = doc_pages
+        else:
+            step = len(doc_pages) / n
+            picked = [doc_pages[int(i * step)] for i in range(n)]
+        result.extend((doc_id, p) for p in picked)
+
+    return result
+
+
 def select_difficult_pages(
     struggle_categories: dict[str, list[tuple[str, int]]],
     gray_zone_pages: list[tuple[str, int]],
     disagreement_pages: list[tuple[str, int]],
+    max_per_category: int = 4,
+    max_gray_zone: int = 16,
+    max_disagreement: int = 12,
 ) -> dict[str, list[int]]:
     """Select difficult pages for ground truth based on coverage.
 
     Strategy:
     - At least 2-3 pages per struggle category (preferring cross-document diversity)
-    - All gray zone pages (most informative for threshold calibration)
-    - All signal disagreement pages (reveal quality model inconsistencies)
+    - Sample gray zone pages with cross-document diversity (capped to avoid explosion)
+    - Sample signal disagreement pages with cross-document diversity
+    - For categories with 10+ pages, sample 3-4 spanning different documents
+
+    Target: ~40-50 difficult pages total across all documents.
     """
     selected: set[tuple[str, int]] = set()
 
-    for _cat, pages in struggle_categories.items():
+    for cat, pages in struggle_categories.items():
+        # Skip gray_zone and signal_disagreement here -- handled separately below
+        if cat in ("gray_zone", "signal_disagreement"):
+            continue
+
         # Prefer diversity: try to pick from different documents
         by_doc: dict[str, list[int]] = defaultdict(list)
         for doc_id, page_num in pages:
             by_doc[doc_id].append(page_num)
 
-        added = 0
-        # First pass: one from each document
-        for doc_id, doc_pages in sorted(by_doc.items()):
-            if added >= 3:
-                break
-            selected.add((doc_id, doc_pages[0]))
-            added += 1
+        if len(pages) <= max_per_category:
+            # Small category: include all
+            selected.update(pages)
+        else:
+            # Large category: sample with cross-document diversity
+            sampled = _sample_cross_document(pages, max_per_category)
+            selected.update(sampled)
 
-        # Second pass: fill to minimum 2 if needed
-        if added < 2:
+        # Ensure minimum 2 per category
+        if len([p for p in selected if p in set(pages)]) < 2:
             for doc_id, page_num in pages[:2]:
                 selected.add((doc_id, page_num))
 
-    # Add all gray zone and signal disagreement pages
-    selected.update(gray_zone_pages)
-    selected.update(disagreement_pages)
+    # Sample gray zone pages (most common category, cap to avoid hundreds)
+    if len(gray_zone_pages) <= max_gray_zone:
+        selected.update(gray_zone_pages)
+    else:
+        sampled = _sample_cross_document(gray_zone_pages, max_gray_zone)
+        selected.update(sampled)
+
+    # Sample signal disagreement pages
+    if len(disagreement_pages) <= max_disagreement:
+        selected.update(disagreement_pages)
+    else:
+        sampled = _sample_cross_document(disagreement_pages, max_disagreement)
+        selected.update(sampled)
 
     # Group by document
     result: dict[str, list[int]] = defaultdict(list)

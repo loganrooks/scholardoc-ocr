@@ -12,10 +12,10 @@
   "documents": [
     {
       "id": "simondon-technical-objects",
-      "title": "Du mode d'existence des objets techniques",
+      "title": "On the Mode of Existence of Technical Objects",
       "author": "Gilbert Simondon",
-      "language": ["fr"],
-      "page_count": null,
+      "language": ["en"],
+      "page_count": 267,
       "scan_source": null,
       "has_footnotes": true,
       "has_greek": false,
@@ -25,10 +25,21 @@
         "path": "baselines/simondon-technical-objects/final",
         "diagnostics_file": "simondon-technical-objects.diagnostics.json",
         "text_file": "simondon-technical-objects.txt",
-        "run_date": null,
-        "pipeline_version": null
+        "run_date": "2026-02-18",
+        "pipeline_version": "0.2.0"
       },
-      "diagnostic_summary": null,
+      "diagnostic_summary": {
+        "total_pages": 267,
+        "flagged_pages": 14,
+        "flagged_percentage": 0.0524,
+        "dominant_struggle_categories": ["gray_zone", "signal_disagreement", "vocabulary_miss"],
+        "quality_score_range": [0.675, 1.0],
+        "signal_disagreement_count": 22
+      },
+      "selected_pages": {
+        "difficult": [0, 1, 64, 83, 100, 141, 204],
+        "regression": [3, 72, 91, 98]
+      },
       "ground_truth_pages": {}
     },
     {
@@ -36,7 +47,7 @@
       "title": "Of Grammatology",
       "author": "Jacques Derrida",
       "language": ["en"],
-      "page_count": null,
+      "page_count": 452,
       "scan_source": null,
       "has_footnotes": true,
       "has_greek": true,
@@ -46,10 +57,21 @@
         "path": "baselines/derrida-grammatology/final",
         "diagnostics_file": "derrida-grammatology.diagnostics.json",
         "text_file": "derrida-grammatology.txt",
-        "run_date": null,
-        "pipeline_version": null
+        "run_date": "2026-02-18",
+        "pipeline_version": "0.2.0"
       },
-      "diagnostic_summary": null,
+      "diagnostic_summary": {
+        "total_pages": 452,
+        "flagged_pages": 5,
+        "flagged_percentage": 0.0111,
+        "dominant_struggle_categories": ["gray_zone", "signal_disagreement", "vocabulary_miss"],
+        "quality_score_range": [0.789, 1.0],
+        "signal_disagreement_count": 15
+      },
+      "selected_pages": {
+        "difficult": [0, 3, 100, 185, 194, 334, 446],
+        "regression": [2, 8, 158, 243, 286, 451]
+      },
       "ground_truth_pages": {}
     },
     {
@@ -57,7 +79,7 @@
       "title": "Margins of Philosophy",
       "author": "Jacques Derrida",
       "language": ["en"],
-      "page_count": null,
+      "page_count": 359,
       "scan_source": null,
       "has_footnotes": true,
       "has_greek": true,
@@ -67,10 +89,21 @@
         "path": "baselines/derrida-margins/final",
         "diagnostics_file": "derrida-margins.diagnostics.json",
         "text_file": "derrida-margins.txt",
-        "run_date": null,
-        "pipeline_version": null
+        "run_date": "2026-02-18",
+        "pipeline_version": "0.2.0"
       },
-      "diagnostic_summary": null,
+      "diagnostic_summary": {
+        "total_pages": 359,
+        "flagged_pages": 1,
+        "flagged_percentage": 0.0028,
+        "dominant_struggle_categories": ["gray_zone", "signal_disagreement", "surya_insufficient"],
+        "quality_score_range": [0.828, 1.0],
+        "signal_disagreement_count": 9
+      },
+      "selected_pages": {
+        "difficult": [0, 2, 29, 102, 191, 203, 235, 270],
+        "regression": [4, 94, 149, 182, 356]
+      },
       "ground_truth_pages": {}
     },
     {
@@ -78,7 +111,7 @@
       "title": "Dissemination",
       "author": "Jacques Derrida",
       "language": ["en"],
-      "page_count": null,
+      "page_count": 400,
       "scan_source": null,
       "has_footnotes": true,
       "has_greek": true,
@@ -88,10 +121,21 @@
         "path": "baselines/derrida-dissemination/final",
         "diagnostics_file": "derrida-dissemination.diagnostics.json",
         "text_file": "derrida-dissemination.txt",
-        "run_date": null,
-        "pipeline_version": null
+        "run_date": "2026-02-18",
+        "pipeline_version": "0.2.0"
       },
-      "diagnostic_summary": null,
+      "diagnostic_summary": {
+        "total_pages": 400,
+        "flagged_pages": 117,
+        "flagged_percentage": 0.2925,
+        "dominant_struggle_categories": ["gray_zone", "signal_disagreement", "vocabulary_miss"],
+        "quality_score_range": [0.679, 1.0],
+        "signal_disagreement_count": 12
+      },
+      "selected_pages": {
+        "difficult": [0, 24, 93, 104, 200, 299],
+        "regression": [1, 179, 187, 206, 399]
+      },
       "ground_truth_pages": {}
     }
   ]

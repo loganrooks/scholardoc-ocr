@@ -1,0 +1,77 @@
+{
+  "difficult": {
+    "derrida-dissemination": [
+      0,
+      24,
+      93,
+      104,
+      200,
+      299
+    ],
+    "derrida-grammatology": [
+      0,
+      3,
+      100,
+      185,
+      194,
+      334,
+      446
+    ],
+    "derrida-margins": [
+      0,
+      2,
+      29,
+      102,
+      191,
+      203,
+      235,
+      270
+    ],
+    "simondon-technical-objects": [
+      0,
+      1,
+      64,
+      83,
+      100,
+      141,
+      204
+    ]
+  },
+  "regression": {
+    "simondon-technical-objects": [
+      3,
+      72,
+      91,
+      98
+    ],
+    "derrida-grammatology": [
+      2,
+      8,
+      158,
+      243,
+      286,
+      451
+    ],
+    "derrida-margins": [
+      4,
+      94,
+      149,
+      182,
+      356
+    ],
+    "derrida-dissemination": [
+      1,
+      179,
+      187,
+      206,
+      399
+    ]
+  },
+  "total_pages": 48,
+  "coverage_summary": {
+    "vocabulary_miss": 25,
+    "signal_disagreement": 60,
+    "gray_zone": 1225,
+    "surya_insufficient": 1
+  }
+}
