@@ -1,0 +1,12 @@
+# PDF files (large binaries, user-specific paths)
+pdfs/
+
+# Rendered page images (regenerable from PDFs)
+images/
+
+# Pipeline output PDFs (large binaries)
+baselines/**/final/*.pdf
+
+# Pipeline work directories and logs
+baselines/**/work/
+baselines/**/logs/
