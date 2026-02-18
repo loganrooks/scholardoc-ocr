@@ -10,16 +10,16 @@ See: .planning/PROJECT.md (updated 2026-02-17)
 ## Current Position
 
 Phase: 16 of 20 (Test Corpus & Ground Truth)
-Plan: 1 of 3 in current phase
+Plan: 2 of 3 in current phase
 Status: Executing
-Last activity: 2026-02-18 — Completed 16-01-PLAN.md (Corpus Infrastructure)
+Last activity: 2026-02-18 — Completed 16-02-PLAN.md (Diagnostic Baselines & Coverage Analysis)
 
 Progress: v1.0 [##########] | v2.0 [##########] | v2.1 [##########] | v3.0 [###░░░░░░░] ~33%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 46 (v1.0: 17, v2.0: 8, v2.1: 17, v3.0: 4)
+- Total plans completed: 47 (v1.0: 17, v2.0: 8, v2.1: 17, v3.0: 5)
 - Average duration: ~4 min/plan
 - Total milestones: 3 shipped, 1 in progress
 
@@ -35,6 +35,7 @@ Progress: v1.0 [##########] | v2.0 [##########] | v2.1 [##########] | v3.0 [###�
 | Phase 15 P02 | 4min | 2 tasks | 2 files |
 | Phase 15 P03 | 4min | 2 tasks | 3 files |
 | Phase 16 P01 | 12min | 2 tasks | 6 files |
+| Phase 16 P02 | 3min | 2 tasks | 15 files |
 
 ## Accumulated Context
 
@@ -57,6 +58,8 @@ Recent for v3.0:
 - [Phase 16]: 0-indexed page numbers throughout corpus, matching PageResult.page_number convention
 - [Phase 16]: Coverage-based page selection (difficult + regression) over count-based
 - [Phase 16]: Corpus-local .gitignore for clean separation from root .gitignore
+- [Phase 16]: Sample gray_zone/disagreement pages with cross-document diversity instead of including all
+- [Phase 16]: 48 selected pages (28 difficult + 20 regression) balances coverage with transcription effort
 
 ### Pending Todos
 
@@ -76,5 +79,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-18
-Stopped at: Completed 16-01-PLAN.md (Corpus Infrastructure)
+Stopped at: Completed 16-02-PLAN.md (Diagnostic Baselines & Coverage Analysis)
 Resume file: None
