@@ -5,21 +5,21 @@
 See: .planning/PROJECT.md (updated 2026-02-17)
 
 **Core value:** Produce accurate OCR text from scanned academic PDFs with minimal manual intervention, using quality-gated fallback to avoid expensive neural OCR unless needed.
-**Current focus:** v3.0 Diagnostic Intelligence — Phase 15 (Diagnostic Infrastructure)
+**Current focus:** v3.0 Diagnostic Intelligence — Phase 16 (Test Corpus & Ground Truth)
 
 ## Current Position
 
-Phase: 15 of 20 (Diagnostic Infrastructure)
-Plan: 3 of 3 in current phase (PHASE COMPLETE)
-Status: Phase Complete
-Last activity: 2026-02-17 — Completed 15-03-PLAN.md (Diagnostics-Gated Features + JSON Sidecar)
+Phase: 16 of 20 (Test Corpus & Ground Truth)
+Plan: 1 of 3 in current phase
+Status: Executing
+Last activity: 2026-02-18 — Completed 16-01-PLAN.md (Corpus Infrastructure)
 
-Progress: v1.0 [##########] | v2.0 [##########] | v2.1 [##########] | v3.0 [##░░░░░░░░] ~17%
+Progress: v1.0 [##########] | v2.0 [##########] | v2.1 [##########] | v3.0 [###░░░░░░░] ~33%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 45 (v1.0: 17, v2.0: 8, v2.1: 17, v3.0: 3)
+- Total plans completed: 46 (v1.0: 17, v2.0: 8, v2.1: 17, v3.0: 4)
 - Average duration: ~4 min/plan
 - Total milestones: 3 shipped, 1 in progress
 
@@ -34,6 +34,7 @@ Progress: v1.0 [##########] | v2.0 [##########] | v2.1 [##########] | v3.0 [##�
 | Phase 15 P01 | 3min | 2 tasks | 2 files |
 | Phase 15 P02 | 4min | 2 tasks | 2 files |
 | Phase 15 P03 | 4min | 2 tasks | 3 files |
+| Phase 16 P01 | 12min | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -53,6 +54,9 @@ Recent for v3.0:
 - [Phase 15]: Lazy cv2/numpy import in analyze_image_quality to avoid weight for non-diagnostics runs
 - [Phase 15]: 150 DPI page rendering for image quality (4x memory savings vs 300 DPI)
 - [Phase 15]: DIAG-04 text preservation timing: capture BEFORE map_results_to_files mutates text
+- [Phase 16]: 0-indexed page numbers throughout corpus, matching PageResult.page_number convention
+- [Phase 16]: Coverage-based page selection (difficult + regression) over count-based
+- [Phase 16]: Corpus-local .gitignore for clean separation from root .gitignore
 
 ### Pending Todos
 
@@ -71,6 +75,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-02-17
-Stopped at: Completed 15-03-PLAN.md (Diagnostics-Gated Features + JSON Sidecar) -- Phase 15 COMPLETE
+Last session: 2026-02-18
+Stopped at: Completed 16-01-PLAN.md (Corpus Infrastructure)
 Resume file: None
